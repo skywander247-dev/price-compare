@@ -1,0 +1,4094 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>行動賣場商品比價系統 v1.1（純觸控極速版）</title>
+
+  <!-- iOS / Android PWA 加入主畫面與全螢幕設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="行動比價系統" />
+  <meta name="theme-color" content="#0f766e" />
+  <meta name="format-detection" content="telephone=no" />
+
+  <!-- 內嵌 SVG 應用程式圖示（純 XML URL 編碼，無 base64） -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f766e'/%3E%3Ctext x='50' y='64' font-size='52' text-anchor='middle' fill='white'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f766e'/%3E%3Ctext x='50' y='64' font-size='52' text-anchor='middle' fill='white'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E" />
+
+  <!-- SheetJS CDN（支援 3 工作表 .xlsx 匯出，離線時優雅降級提示） -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" defer></script>
+
+  <!-- ==================== 自包含極速行動優先 CSS（無外部框架依賴） ==================== -->
+  <style>
+    :root {
+      --primary: #0f766e;
+      --primary-dark: #115e59;
+      --emerald: #059669;
+      --emerald-bright: #16a34a;
+      --emerald-soft: #ecfdf5;
+      --emerald-border: #a7f3d0;
+      --sky: #0284c7;
+      --sky-soft: #f0f9ff;
+      --sky-border: #bae6fd;
+      --amber: #d97706;
+      --amber-soft: #fffbeb;
+      --amber-border: #fde68a;
+      --rose: #e11d48;
+      --rose-soft: #fff1f2;
+      --rose-border: #fecdd3;
+      --violet: #7c3aed;
+      --violet-soft: #f5f3ff;
+      --bg: #f1f5f9;
+      --surface: #ffffff;
+      --surface-muted: #f8fafc;
+      --text: #0f172a;
+      --text-sub: #475569;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+      --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+      --shadow-md: 0 6px 18px rgba(15, 23, 42, 0.09);
+      --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.22);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      max-width: 100vw;
+      overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: none;
+    }
+
+    /* 強制所有輸入與選單元素 >= 16px，徹底杜絕 iOS Safari 聚焦自動放大 */
+    input, select, textarea {
+      font-size: 16px !important;
+      font-family: inherit;
+      color: var(--text);
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: inherit;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .hidden { display: none !important; }
+    .container {
+      width: 100%;
+      max-width: 680px;
+      margin: 0 auto;
+    }
+
+    /* 隱藏橫向捲軸但保留流暢觸控滑動 */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ==================== 頂部固定導覽列 + 預設賣場列 ==================== */
+    .app-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--emerald) 100%);
+      color: #ffffff;
+      box-shadow: 0 3px 12px rgba(15, 118, 110, 0.22);
+      padding-top: env(safe-area-inset-top);
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .header-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: -0.2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .version-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      background: rgba(255, 255, 255, 0.22);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      color: #ecfdf5;
+      flex-shrink: 0;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .date-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 4px 8px;
+      border-radius: 8px;
+      background: rgba(0, 0, 0, 0.16);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .btn-reload {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 9px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.18);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #ffffff;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+
+    .btn-reload:hover { background: rgba(255, 255, 255, 0.28); }
+    .btn-reload:disabled { opacity: 0.6; }
+
+    /* 頂部賣場快速切換列 */
+    .store-bar-wrap {
+      background: rgba(255, 255, 255, 0.97);
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .store-bar-inner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+    }
+
+    .store-bar-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--primary);
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+
+    .store-pills {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      flex: 1;
+      padding: 2px 0;
+    }
+
+    .store-pill {
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      background: #f1f5f9;
+      color: #334155;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: all 0.15s;
+    }
+
+    .store-pill.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(15, 118, 110, 0.28);
+    }
+
+    .store-pill-add {
+      padding: 6px 11px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      border: 1px dashed var(--primary);
+      background: var(--emerald-soft);
+      color: var(--primary);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    /* ==================== 主內容區與底部固定導覽列 ==================== */
+    .app-main {
+      padding: calc(108px + env(safe-area-inset-top)) 12px calc(92px + env(safe-area-inset-bottom));
+      min-height: 100vh;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-top: 1px solid var(--border);
+      box-shadow: 0 -4px 16px rgba(15, 23, 42, 0.06);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .bottom-nav-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      height: 64px;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      color: #94a3b8;
+      font-size: 11px;
+      font-weight: 700;
+      position: relative;
+      transition: color 0.15s;
+    }
+
+    .nav-item.active {
+      color: var(--primary);
+    }
+
+    .nav-item-icon {
+      font-size: 20px;
+      line-height: 1;
+      transition: transform 0.15s;
+    }
+
+    .nav-item.active .nav-item-icon {
+      transform: scale(1.1);
+    }
+
+    .nav-indicator {
+      width: 26px;
+      height: 3px;
+      border-radius: 999px;
+      background: transparent;
+      margin-top: 1px;
+    }
+
+    .nav-item.active .nav-indicator {
+      background: var(--primary);
+    }
+
+    /* ==================== 通用卡片、間距與網格 ==================== */
+    .stack { display: flex; flex-direction: column; gap: 12px; }
+    .stack-sm { display: flex; flex-direction: column; gap: 8px; }
+    .row { display: flex; align-items: center; gap: 8px; }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .row-wrap { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .card-clickable {
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.12s, box-shadow 0.15s;
+    }
+
+    .card-clickable:hover {
+      border-color: rgba(15, 118, 110, 0.45);
+      box-shadow: 0 3px 10px rgba(15, 118, 110, 0.08);
+    }
+
+    .card-clickable:active {
+      transform: scale(0.99);
+    }
+
+    /* ==================== 表單控制項 ==================== */
+    .field-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--text-sub);
+      margin-bottom: 5px;
+      white-space: nowrap;
+    }
+
+    .req { color: var(--rose); margin-left: 2px; }
+
+    .input, .select {
+      width: 100%;
+      min-width: 0;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border-strong);
+      background: var(--surface);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    .select {
+      background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 30px;
+      background-color: var(--surface-muted);
+      font-weight: 700;
+    }
+
+    .input:focus, .select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+      background-color: #ffffff;
+    }
+
+    .input-bold { font-weight: 800; }
+    .input-muted { background: var(--surface-muted); }
+
+    .select:disabled {
+      background-color: #e2e8f0;
+      color: #64748b;
+      cursor: not-allowed;
+    }
+
+    /* 搜尋框 */
+    .search-wrap {
+      position: relative;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 15px;
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 10px 36px 10px 34px;
+      border-radius: var(--radius-md);
+      border: 1.5px solid transparent;
+      background: #f1f5f9;
+      outline: none;
+      transition: all 0.15s;
+    }
+
+    .search-input:focus {
+      background: #ffffff;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+    }
+
+    .search-clear {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      background: #cbd5e1;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ==================== 按鈕與標籤系統 ==================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 800;
+      white-space: nowrap;
+      transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    }
+
+    .btn-sm { padding: 7px 11px; font-size: 12px; border-radius: 10px; }
+    .btn-xs { padding: 6px 9px; font-size: 11px; border-radius: 9px; }
+    .btn-full { width: 100%; padding: 12px 16px; }
+
+    .btn-primary { background: var(--primary); color: #ffffff; box-shadow: 0 2px 6px rgba(15, 118, 110, 0.25); }
+    .btn-primary:hover { background: var(--primary-dark); }
+    .btn-dark { background: #0f172a; color: #ffffff; }
+    .btn-soft { background: #f1f5f9; color: #334155; border: 1px solid var(--border); }
+    .btn-soft:hover { background: #e2e8f0; }
+    .btn-emerald-soft { background: var(--emerald-soft); color: var(--primary); border: 1px solid var(--emerald-border); }
+    .btn-sky-soft { background: var(--sky-soft); color: #0369a1; border: 1px solid var(--sky-border); }
+    .btn-amber-soft { background: var(--amber-soft); color: #b45309; border: 1px solid var(--amber-border); }
+    .btn-rose-soft { background: var(--rose-soft); color: var(--rose); border: 1px solid var(--rose-border); }
+    .btn-danger { background: var(--rose); color: #ffffff; }
+    .btn-amber { background: var(--amber); color: #ffffff; }
+
+    /* 徽章 / 膠囊 */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge-pill { border-radius: 999px; }
+    .badge-emerald { background: var(--emerald-soft); color: var(--primary); border: 1px solid #d1fae5; }
+    .badge-winner { background: var(--emerald-bright); color: #ffffff; font-weight: 800; }
+    .badge-winner-soft { background: #dcfce7; color: #15803d; font-weight: 800; }
+    .badge-slate { background: #f1f5f9; color: #475569; border: 1px solid var(--border); }
+    .badge-sky { background: var(--sky-soft); color: #0369a1; border: 1px solid var(--sky-border); }
+    .badge-amber { background: var(--amber-soft); color: #b45309; border: 1px solid var(--amber-border); }
+    .badge-rose { background: var(--rose-soft); color: #be123c; border: 1px solid var(--rose-border); }
+    .badge-indigo { background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; }
+    .badge-orange { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+    .badge-purple { background: #faf5ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+
+    /* 分類篩選列 */
+    .cat-pills {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      padding-bottom: 2px;
+    }
+
+    .cat-pill {
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid var(--border);
+      background: var(--surface-muted);
+      color: var(--text-sub);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .cat-pill.active {
+      background: #0f172a;
+      border-color: #0f172a;
+      color: #ffffff;
+    }
+
+    /* 單位一鍵切換器 */
+    .seg-grid {
+      display: grid;
+      gap: 6px;
+    }
+
+    .seg-btn {
+      padding: 9px 4px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 800;
+      border: 1.5px solid var(--border);
+      background: var(--surface-muted);
+      color: var(--text-sub);
+      text-align: center;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .seg-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(15, 118, 110, 0.25);
+    }
+
+    .seg-btn-dark.active {
+      background: #0f172a;
+      border-color: #0f172a;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
+    }
+
+    /* ==================== v1.1 核心表單：多入組切換與乘法算式列 ==================== */
+    .multipack-toggle-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 12px;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border);
+      background: var(--surface-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+
+    .multipack-toggle-card.checked {
+      background: var(--emerald-soft);
+      border-color: var(--primary);
+    }
+
+    .multipack-toggle-card input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--primary);
+      flex-shrink: 0;
+      margin: 0;
+    }
+
+    .multipack-toggle-text {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.35;
+    }
+
+    .multipack-toggle-sub {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    /* 乘法算式列（精準適配 375px iPhone，絕不水平溢位） */
+    .equation-box {
+      background: #f0fdfa;
+      border: 1.5px solid #99f6e4;
+      border-radius: var(--radius-md);
+      padding: 11px 10px;
+    }
+
+    .equation-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 0.85fr) auto minmax(0, 1.1fr) minmax(0, 1.05fr);
+      gap: 6px;
+      align-items: end;
+    }
+
+    .equation-grid .input {
+      padding: 10px 8px;
+      text-align: center;
+    }
+
+    .equation-grid .select {
+      padding: 10px 24px 10px 8px;
+      background-position: right 6px center;
+    }
+
+    .equation-times {
+      font-size: 18px;
+      font-weight: 900;
+      color: var(--primary);
+      padding-bottom: 10px;
+      text-align: center;
+      line-height: 1;
+    }
+
+    .equation-total-helper {
+      margin-top: 8px;
+      padding-top: 7px;
+      border-top: 1px dashed #5eead4;
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--primary-dark);
+    }
+
+    /* 促銷膠囊按鈕 */
+    .promo-pill {
+      padding: 7px 11px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 800;
+      border: 1.5px solid var(--border);
+      background: var(--surface-muted);
+      color: var(--text-sub);
+      transition: all 0.12s;
+    }
+
+    .promo-pill.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(15, 118, 110, 0.25);
+    }
+
+    /* 即時白話換算確認區 */
+    .verify-box {
+      border-radius: var(--radius-md);
+      padding: 12px 13px;
+      border: 1.5px solid var(--border);
+      background: #f8fafc;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .verify-box.is-valid {
+      background: var(--emerald-soft);
+      border-color: var(--emerald-border);
+      color: #064e3b;
+    }
+
+    .verify-box.is-best {
+      background: #f0fdf4;
+      border-color: #86efac;
+      color: #14532d;
+    }
+
+    .verify-box.is-higher {
+      background: var(--amber-soft);
+      border-color: var(--amber-border);
+      color: #78350f;
+    }
+
+    .verify-box.is-ref {
+      background: var(--amber-soft);
+      border-color: var(--amber-border);
+      color: #78350f;
+    }
+
+    .verify-sentence {
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      padding-bottom: 6px;
+      border-bottom: 1px dashed rgba(15, 23, 42, 0.12);
+    }
+
+    .verify-price-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .verify-price-big {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: -0.3px;
+    }
+
+    .verify-compare-line {
+      margin-top: 5px;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    /* ==================== 歷史最低價 Hero 看板 ==================== */
+    .hero-banner {
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      color: #ffffff;
+      background: linear-gradient(135deg, #0f766e 0%, #059669 60%, #16a34a 100%);
+      box-shadow: 0 6px 18px rgba(5, 150, 105, 0.28);
+    }
+
+    .hero-price {
+      font-size: 32px;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.6px;
+    }
+
+    .hero-sub {
+      font-size: 12px;
+      color: rgba(236, 253, 245, 0.92);
+      font-weight: 600;
+    }
+
+    .hero-divider {
+      margin-top: 10px;
+      padding-top: 9px;
+      border-top: 1px solid rgba(255, 255, 255, 0.22);
+      font-size: 12px;
+      font-weight: 800;
+      color: #ecfdf5;
+    }
+
+    /* ==================== 商品卡與報價卡 ==================== */
+    .prod-name {
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--text);
+      line-height: 1.25;
+      margin: 0;
+    }
+
+    .price-figure {
+      font-size: 20px;
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: -0.4px;
+    }
+
+    .quote-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .quote-card.is-winner {
+      border-color: var(--emerald-bright);
+      background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 42%);
+    }
+
+    .quote-card.is-ref {
+      border-color: var(--amber-border);
+      background: linear-gradient(180deg, #fffbeb 0%, #ffffff 45%);
+    }
+
+    .card-footer-bar {
+      margin-top: 10px;
+      padding-top: 9px;
+      border-top: 1px solid #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* 折疊表單外框 */
+    .accordion-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .accordion-card.is-editing {
+      border-color: var(--amber);
+      box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.16);
+    }
+
+    .accordion-trigger {
+      width: 100%;
+      padding: 13px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-align: left;
+      background: var(--surface);
+    }
+
+    .accordion-trigger.open {
+      background: var(--emerald-soft);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .icon-circle {
+      width: 28px;
+      height: 28px;
+      border-radius: 9px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 900;
+      color: #ffffff;
+      background: var(--primary);
+      flex-shrink: 0;
+    }
+
+    .icon-circle.amber { background: var(--amber); }
+
+    /* 排序切換器 */
+    .sort-toggle {
+      display: inline-flex;
+      background: #e2e8f0;
+      padding: 3px;
+      border-radius: 10px;
+      gap: 2px;
+    }
+
+    .sort-btn {
+      padding: 5px 10px;
+      border-radius: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-sub);
+    }
+
+    .sort-btn.active {
+      background: #ffffff;
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+    }
+
+    /* 跨品牌排行榜表格 */
+    .group-rank-panel {
+      margin-top: 10px;
+      background: #f8fafc;
+      border: 1px solid var(--sky-border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+
+    .group-rank-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 9px 11px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .group-rank-row:last-child { border-bottom: none; }
+    .group-rank-row.is-top { background: #f0fdf4; }
+    .group-rank-row.is-current { border-left: 3px solid var(--sky); }
+
+    /* ==================== 貨架即時 PK 樣式 ==================== */
+    .pk-banner {
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      text-align: center;
+      border: 1.5px solid var(--border-strong);
+      background: #e2e8f0;
+      color: var(--text-sub);
+    }
+
+    .pk-banner.has-winner {
+      border: none;
+      background: linear-gradient(135deg, #0f766e 0%, #16a34a 100%);
+      color: #ffffff;
+      box-shadow: 0 6px 16px rgba(5, 150, 105, 0.25);
+    }
+
+    .pk-banner.is-tie {
+      border: none;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #ffffff;
+      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.25);
+    }
+
+    .pk-card {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 14px;
+      box-shadow: var(--shadow-sm);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .pk-card.is-winner {
+      border-color: var(--emerald-bright);
+      background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 30%);
+      box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+    }
+
+    .pk-grid-responsive {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .pk-grid-responsive {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    /* ==================== 統計方塊 ==================== */
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 12px 8px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .stat-val {
+      font-size: 24px;
+      font-weight: 900;
+      line-height: 1.1;
+    }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* ==================== 通用彈窗（取代 alert / confirm） ==================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      background: rgba(15, 23, 42, 0.56);
+      backdrop-filter: blur(2px);
+      -webkit-backdrop-filter: blur(2px);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 0;
+    }
+
+    @media (min-width: 640px) {
+      .modal-backdrop {
+        align-items: center;
+        padding: 16px;
+      }
+    }
+
+    .modal-panel {
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      background: #ffffff;
+      border-radius: 22px 22px 0 0;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    @media (min-width: 640px) {
+      .modal-panel {
+        border-radius: 20px;
+      }
+    }
+
+    .modal-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #475569;
+      font-size: 14px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-body {
+      padding: 16px;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-footer {
+      padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
+      background: var(--surface-muted);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    /* ==================== 浮動 Toast ==================== */
+    .toast-container {
+      position: fixed;
+      bottom: calc(80px + env(safe-area-inset-bottom));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 70;
+      width: 92%;
+      max-width: 380px;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    @keyframes toastPop {
+      from { opacity: 0; transform: translateY(14px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .toast-msg {
+      animation: toastPop 0.2s ease-out forwards;
+      padding: 10px 16px;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.4;
+      color: #ffffff;
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.26);
+    }
+
+    .toast-success { background: rgba(15, 23, 42, 0.94); border: 1px solid rgba(16, 185, 129, 0.45); }
+    .toast-info    { background: rgba(15, 118, 110, 0.96); border: 1px solid rgba(255, 255, 255, 0.25); }
+    .toast-warning { background: rgba(217, 119, 6, 0.96); border: 1px solid rgba(254, 243, 199, 0.4); }
+    .toast-error   { background: rgba(225, 29, 72, 0.96); border: 1px solid rgba(255, 228, 230, 0.4); }
+
+    /* 小型文字工具類 */
+    .text-xs { font-size: 12px; }
+    .text-xxs { font-size: 11px; }
+    .text-muted { color: var(--text-muted); }
+    .text-sub { color: var(--text-sub); }
+    .text-primary { color: var(--primary); }
+    .text-winner { color: var(--emerald-bright); }
+    .text-amber { color: var(--amber); }
+    .text-rose { color: var(--rose); }
+    .font-bold { font-weight: 700; }
+    .font-black { font-weight: 900; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== 頂部固定導覽列 + 預設賣場快速切換列 ==================== -->
+  <header class="app-header">
+    <div class="container header-top">
+      <div class="header-brand">
+        <span style="font-size: 19px; line-height: 1;">🛒</span>
+        <h1 class="header-title">行動比價系統</h1>
+        <span id="app-version-badge" class="version-badge">v1.1</span>
+      </div>
+      <div class="header-actions">
+        <span id="header-today-date" class="date-pill">📅 ----/--/--</span>
+        <button id="btn-force-reload" type="button" class="btn-reload" onclick="forceHardReload()" title="清除快取拉取最新版，100%保留本地資料">
+          <span>🔄</span>
+          <span>更新版本</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 預設賣場橫向滑動列 -->
+    <div class="store-bar-wrap">
+      <div class="container store-bar-inner">
+        <span class="store-bar-label">📍 賣場</span>
+        <div id="store-pill-bar" class="store-pills no-scrollbar"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== 主內容捲動區 ==================== -->
+  <main id="main-container" class="container app-main"></main>
+
+  <!-- ==================== 底部固定三大主分頁導覽列 ==================== -->
+  <nav class="bottom-nav">
+    <div id="bottom-nav-grid" class="container bottom-nav-grid"></div>
+  </nav>
+
+  <!-- ==================== 通用彈窗遮罩（無 alert / confirm） ==================== -->
+  <div id="modal-backdrop" class="modal-backdrop hidden">
+    <div id="modal-panel" class="modal-panel">
+      <div class="modal-header">
+        <h2 id="modal-title" class="modal-title">提示</h2>
+        <button type="button" class="modal-close" onclick="closeModal()">✕</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-footer" class="modal-footer"></div>
+    </div>
+  </div>
+
+  <!-- ==================== 浮動 Toast 提示 ==================== -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- 隱藏 JSON 匯入選擇器 -->
+  <input id="json-import-file" type="file" accept=".json,application/json" class="hidden" onchange="handleJsonFileSelect(event)" />
+
+  <!-- ==================== 核心應用程式邏輯 (v1.1) ==================== -->
+  <script>
+    /*************************************************************************
+     * 一、系統常數鎖定、向下相容規範與三大計價維度設定
+     *************************************************************************/
+    const STORAGE_KEY = "smart_price_compare_v1_official";
+    const APP_VERSION = "v1.1";
+
+    const DEFAULT_STORES = [
+      "全聯", "家樂福", "好市多", "大潤發", "寶雅", "屈臣氏", "傳統市場", "蝦皮", "momo"
+    ];
+
+    const CATEGORIES = [
+      "生鮮蔬果", "乳品飲料", "日用清潔", "零食雜貨", "個人護理", "其他"
+    ];
+
+    // v1.0 舊版分類與計數單位無縫相容對照表
+    const LEGACY_CATEGORY_MAP = {
+      "零食乾貨": "零食雜貨",
+      "保健美妝": "個人護理"
+    };
+
+    const LEGACY_COUNT_UNIT_MAP = {
+      "pcs": "顆",
+      "pack": "包",
+      "bottle": "瓶",
+      "sheet": "抽",
+      "roll": "捲",
+      "pair": "雙"
+    };
+
+    const PROMO_TYPES = [
+      { id: "原價", label: "原價", badgeClass: "badge-slate" },
+      { id: "特價", label: "特價", badgeClass: "badge-rose" },
+      { id: "會員價", label: "會員價", badgeClass: "badge-indigo" },
+      { id: "買一送一", label: "⚡買一送一", badgeClass: "badge-amber" },
+      { id: "第二件5折", label: "⚡第二件5折", badgeClass: "badge-orange" },
+      { id: "出清", label: "出清", badgeClass: "badge-purple" }
+    ];
+
+    /**
+     * 三大計價維度核心定義（含 v1.1 動態白話標籤與多入組算式詞彙）
+     */
+    const DIMENSIONS = {
+      weight: {
+        id: "weight",
+        label: "重量類",
+        icon: "⚖️",
+        baseUnit: "g",
+        singleQtyLabel: "重量",
+        singleQtyPlaceholder: "例如 1 或 500",
+        multiCountLabel: "幾包/幾入",
+        multiQtyLabel: "每入重量",
+        multiContainerWord: "包",
+        defaultInputUnit: "g",
+        defaultDisplayUnit: "per100g",
+        inputUnits: [
+          { id: "g", label: "公克", factor: 1 },
+          { id: "kg", label: "公斤", factor: 1000 },
+          { id: "jin", label: "台斤", factor: 600 },
+          { id: "liang", label: "台兩", factor: 37.5 },
+          { id: "lb", label: "磅", factor: 453.6 },
+          { id: "oz", label: "盎司", factor: 28.35 }
+        ],
+        displayUnits: [
+          { id: "per100g", label: "元/100公克", unitText: "100公克", multiplier: 100 },
+          { id: "perKg", label: "元/公斤", unitText: "公斤", multiplier: 1000 },
+          { id: "perJin", label: "元/台斤", unitText: "台斤", multiplier: 600 },
+          { id: "perG", label: "元/公克", unitText: "公克", multiplier: 1 }
+        ]
+      },
+      volume: {
+        id: "volume",
+        label: "容量類",
+        icon: "💧",
+        baseUnit: "ml",
+        singleQtyLabel: "容量",
+        singleQtyPlaceholder: "例如 1858 或 2",
+        multiCountLabel: "幾瓶/幾罐",
+        multiQtyLabel: "每瓶容量",
+        multiContainerWord: "瓶",
+        defaultInputUnit: "ml",
+        defaultDisplayUnit: "per100ml",
+        inputUnits: [
+          { id: "ml", label: "毫升", factor: 1 },
+          { id: "L", label: "公升", factor: 1000 },
+          { id: "gal", label: "加侖", factor: 3785 }
+        ],
+        displayUnits: [
+          { id: "per100ml", label: "元/100毫升", unitText: "100毫升", multiplier: 100 },
+          { id: "perL", label: "元/公升", unitText: "公升", multiplier: 1000 },
+          { id: "perMl", label: "元/毫升", unitText: "毫升", multiplier: 1 }
+        ]
+      },
+      count: {
+        id: "count",
+        label: "計數類",
+        icon: "🔢",
+        baseUnit: "unit",
+        singleQtyLabel: "數量",
+        singleQtyPlaceholder: "例如 10 或 110",
+        multiCountLabel: "幾包/幾盒",
+        multiQtyLabel: "每包數量",
+        multiContainerWord: "包",
+        defaultInputUnit: "顆",
+        defaultDisplayUnit: "per1",
+        inputUnits: [
+          { id: "顆", label: "顆", factor: 1 },
+          { id: "個", label: "個", factor: 1 },
+          { id: "包", label: "包", factor: 1 },
+          { id: "袋", label: "袋", factor: 1 },
+          { id: "瓶", label: "瓶", factor: 1 },
+          { id: "罐", label: "罐", factor: 1 },
+          { id: "抽", label: "抽", factor: 1 },
+          { id: "張", label: "張", factor: 1 },
+          { id: "片", label: "片", factor: 1 },
+          { id: "捲", label: "捲", factor: 1 },
+          { id: "雙", label: "雙", factor: 1 },
+          { id: "支", label: "支", factor: 1 },
+          { id: "盒", label: "盒", factor: 1 }
+        ],
+        displayUnits: [
+          { id: "per1", label: "元/1單位", unitText: "單位", multiplier: 1 },
+          { id: "per100", label: "元/100單位", unitText: "100單位", multiplier: 100 }
+        ]
+      }
+    };
+
+    /*************************************************************************
+     * 二、應用程式持久化狀態與暫存 UI 狀態
+     *************************************************************************/
+    let appState = {
+      version: APP_VERSION,
+      activeStore: DEFAULT_STORES[0],
+      customStores: [],
+      products: []
+    };
+
+    let uiState = {
+      todayDate: "",
+      activeTab: "library",            // 'library' | 'pk' | 'manage'
+      selectedProductId: null,         // null = 商品清單；有值 = 商品詳情
+      searchQuery: "",
+      selectedCategory: "全部",
+      quoteSort: "price",              // 'price' | 'date'
+      showQuoteForm: false,
+      editingQuoteId: null,
+      showGroupRankingPanel: false,    // 同群組跨品牌綜合排行榜展開狀態
+      pk: {
+        dimension: "weight",
+        displayUnit: "per100g",
+        a: { store: DEFAULT_STORES[0], price: "", isMultiPack: false, packCount: "2", unitQty: "", unit: "kg", promoType: "原價", storeManuallySet: false },
+        b: { store: DEFAULT_STORES[1], price: "", isMultiPack: false, packCount: "2", unitQty: "", unit: "jin", promoType: "原價", storeManuallySet: false }
+      }
+    };
+
+    let pendingJsonImportData = null;
+
+    /*************************************************************************
+     * 三、日期工具與自動對齊實際日期（Auto-Sync Real Date）
+     *************************************************************************/
+    function getTodayDateString() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const d = String(now.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function getOffsetDateString(offsetDays) {
+      const d = new Date();
+      d.setDate(d.getDate() + offsetDays);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${day}`;
+    }
+
+    function calcDaysBetween(dateStr, baseDateStr) {
+      if (!dateStr || !baseDateStr) return 0;
+      const d1 = new Date(dateStr + "T00:00:00");
+      const d2 = new Date(baseDateStr + "T00:00:00");
+      if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 0;
+      return Math.round((d2 - d1) / (1000 * 60 * 60 * 24));
+    }
+
+    /** 價格新鮮度判定（<=30天綠標、31-90天中性、>90天橘黃舊報價提醒） */
+    function getFreshnessInfo(checkDate) {
+      const days = calcDaysBetween(checkDate, uiState.todayDate);
+      if (days <= 0) {
+        return { days: 0, label: "今日", statusText: "今日", badgeClass: "badge-winner-soft" };
+      }
+      if (days <= 30) {
+        return { days, label: `${days}天前`, statusText: "近期(30天內)", badgeClass: "badge-emerald" };
+      }
+      if (days <= 90) {
+        return { days, label: `${days}天前`, statusText: "一般(31-90天)", badgeClass: "badge-slate" };
+      }
+      return { days, label: `⏳ 舊報價參考 (${days}天前)`, statusText: "舊報價參考", badgeClass: "badge-amber" };
+    }
+
+    function checkAndAutoSyncRealDate(isWakeEvent = false) {
+      const realToday = getTodayDateString();
+      const dateEl = document.getElementById("header-today-date");
+      if (uiState.todayDate !== realToday) {
+        const hadPrev = Boolean(uiState.todayDate);
+        uiState.todayDate = realToday;
+        if (dateEl) dateEl.textContent = `📅 ${realToday}`;
+        if (hadPrev && isWakeEvent) {
+          renderMainContent();
+          showToast(`📅 日期已自動對齊今日 (${realToday})`, "info");
+        }
+      } else if (dateEl) {
+        dateEl.textContent = `📅 ${realToday}`;
+      }
+    }
+
+    /*************************************************************************
+     * 四、跨單位換算引擎、動態真實單位名稱與白話確認句產生器
+     *************************************************************************/
+    function generateId(prefix = "id") {
+      return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function normalizeGroupTag(tag) {
+      const cleaned = (tag || "").trim().replace(/^#+/, "").trim();
+      return cleaned ? `#${cleaned}` : "";
+    }
+
+    function getAllStores() {
+      return Array.from(new Set([...DEFAULT_STORES, ...(appState.customStores || [])]));
+    }
+
+    function getDimensionConfig(dimId) {
+      return DIMENSIONS[dimId] || DIMENSIONS.weight;
+    }
+
+    function getInputUnitConfig(dimId, unitId) {
+      const dim = getDimensionConfig(dimId);
+      const mapped = dimId === "count" && LEGACY_COUNT_UNIT_MAP[unitId] ? LEGACY_COUNT_UNIT_MAP[unitId] : unitId;
+      return dim.inputUnits.find(u => u.id === mapped) || dim.inputUnits[0];
+    }
+
+    function getDisplayUnitConfig(dimId, displayUnitId) {
+      const dim = getDimensionConfig(dimId);
+      return dim.displayUnits.find(u => u.id === displayUnitId) || dim.displayUnits[0];
+    }
+
+    function getPromoConfig(promoId) {
+      return PROMO_TYPES.find(p => p.id === promoId) || PROMO_TYPES[0];
+    }
+
+    function formatUnitPrice(val) {
+      if (val === null || !isFinite(val) || val < 0) return "--";
+      if (val >= 100) return val.toFixed(1).replace(/\.0$/, "");
+      if (val >= 10) return val.toFixed(1).replace(/\.0$/, "");
+      if (val >= 1) return val.toFixed(2).replace(/0$/, "").replace(/\.$/, "");
+      if (val >= 0.01) return val.toFixed(3).replace(/0+$/, "").replace(/\.$/, "");
+      return val.toFixed(4);
+    }
+
+    function formatNumberWithCommas(val) {
+      const n = Number(val);
+      if (!isFinite(n)) return "";
+      const clean = Number.isInteger(n) ? n : parseFloat(n.toFixed(3));
+      return clean.toLocaleString("zh-TW", { maximumFractionDigits: 3 });
+    }
+
+    /**
+     * 取得實際顯示的單位文字（計數類自動替換為真實單位，如「顆」、「抽」、「100抽」）
+     */
+    function getEffectiveUnitSuffix(dimId, displayUnitId, specificUnitId = null) {
+      const dispCfg = getDisplayUnitConfig(dimId, displayUnitId);
+      if (dimId !== "count") return dispCfg.unitText;
+      const realUnit = specificUnitId ? getInputUnitConfig("count", specificUnitId).label : "單位";
+      return dispCfg.multiplier === 100 ? `100${realUnit}` : realUnit;
+    }
+
+    /** 取得商品於計數類時是否所有報價都用同一個真實單位（用來優化切換按鈕文字） */
+    function detectUniformCountUnit(product) {
+      if (!product || product.dimension !== "count") return null;
+      const units = new Set(
+        (product.quotes || [])
+          .filter(q => !q.isReferenceOnly && q.unit)
+          .map(q => getInputUnitConfig("count", q.unit).label)
+      );
+      return units.size === 1 ? Array.from(units)[0] : null;
+    }
+
+    /**
+     * 核心單價運算引擎
+     */
+    function calculateQuoteMetrics(dimId, quote) {
+      if (quote.isReferenceOnly) {
+        return { valid: false, isReferenceOnly: true, baseUnitPrice: null };
+      }
+      const price = parseFloat(quote.price);
+      const packCount = parseFloat(quote.packCount) || 1;
+      const unitQty = parseFloat(quote.unitQty);
+      const unitCfg = getInputUnitConfig(dimId, quote.unit);
+
+      if (!isFinite(price) || price <= 0 || !isFinite(packCount) || packCount <= 0 || !isFinite(unitQty) || unitQty <= 0) {
+        return { valid: false, isReferenceOnly: false, baseUnitPrice: null };
+      }
+
+      const rawTotalInputQty = packCount * unitQty;
+      const singleBaseQty = rawTotalInputQty * unitCfg.factor;
+      let effectivePrice = price;
+      let effectiveBaseQty = singleBaseQty;
+
+      if (quote.promoType === "買一送一") {
+        effectivePrice = price;
+        effectiveBaseQty = singleBaseQty * 2;
+      } else if (quote.promoType === "第二件5折") {
+        effectivePrice = price * 1.5;
+        effectiveBaseQty = singleBaseQty * 2;
+      }
+
+      const baseUnitPrice = effectivePrice / effectiveBaseQty;
+      return {
+        valid: true,
+        isReferenceOnly: false,
+        price,
+        packCount,
+        unitQty,
+        unitLabel: unitCfg.label,
+        rawTotalInputQty,
+        effectivePrice,
+        effectiveBaseQty,
+        baseUnitPrice
+      };
+    }
+
+    function getDisplayPrice(dimId, displayUnitId, baseUnitPrice) {
+      if (baseUnitPrice === null || !isFinite(baseUnitPrice)) return null;
+      const dispCfg = getDisplayUnitConfig(dimId, displayUnitId);
+      return baseUnitPrice * dispCfg.multiplier;
+    }
+
+    /**
+     * 產生 v1.1 白話即時確認句（供報價表單與貨架 PK 共用）
+     * 例：「確認內容：花 $149 買 12 包 × 110 抽（共 1,320 抽）」
+     * 例：「確認內容：花 $100 買 1 公斤（⚡買一送一，共 2 公斤）」
+     */
+    function buildPlainConfirmationSentence(dimId, quote, metrics) {
+      if (!metrics || !metrics.valid) return "";
+      const dim = getDimensionConfig(dimId);
+      const priceStr = `$${formatNumberWithCommas(metrics.price)}`;
+      const unitStr = metrics.unitLabel;
+
+      let qtyDesc = "";
+      if (metrics.packCount > 1) {
+        qtyDesc = `${formatNumberWithCommas(metrics.packCount)} ${dim.multiContainerWord} × ${formatNumberWithCommas(metrics.unitQty)} ${unitStr}（共 ${formatNumberWithCommas(metrics.rawTotalInputQty)} ${unitStr}）`;
+      } else {
+        qtyDesc = `${formatNumberWithCommas(metrics.unitQty)} ${unitStr}`;
+      }
+
+      let promoTail = "";
+      if (quote.promoType === "買一送一") {
+        promoTail = `（⚡買一送一，共 ${formatNumberWithCommas(metrics.rawTotalInputQty * 2)} ${unitStr}）`;
+      } else if (quote.promoType === "第二件5折") {
+        promoTail = `（⚡第二件5折，2件共 $${formatNumberWithCommas(metrics.effectivePrice)}）`;
+      }
+
+      return `確認內容：花 ${priceStr} 買 ${qtyDesc}${promoTail}`;
+    }
+
+    /** 報價卡片上的人性化規格摘要 */
+    function formatHumanSpec(dimId, quote) {
+      const priceText = `$${formatNumberWithCommas(quote.price)}`;
+      if (quote.isReferenceOnly) {
+        const refUnit = (quote.refUnitText || "份").trim();
+        return `${priceText} / ${formatNumberWithCommas(quote.unitQty || 1)} ${refUnit}`;
+      }
+      const dim = getDimensionConfig(dimId);
+      const unitLabel = getInputUnitConfig(dimId, quote.unit).label;
+      const pack = parseFloat(quote.packCount) || 1;
+      const qty = parseFloat(quote.unitQty) || 0;
+      if (pack > 1) {
+        const total = pack * qty;
+        return `${priceText}｜${formatNumberWithCommas(pack)} ${dim.multiContainerWord} × ${formatNumberWithCommas(qty)} ${unitLabel}（共 ${formatNumberWithCommas(total)} ${unitLabel}）`;
+      }
+      return `${priceText}｜${formatNumberWithCommas(qty)} ${unitLabel}`;
+    }
+
+    /** 分析單一商品的所有報價排名與統計 */
+    function analyzeProductQuotes(product) {
+      const quotes = Array.isArray(product.quotes) ? product.quotes : [];
+      const ranked = [];
+      const references = [];
+
+      quotes.forEach(q => {
+        const m = calculateQuoteMetrics(product.dimension, q);
+        if (q.isReferenceOnly || !m.valid) {
+          references.push({ ...q, metrics: m });
+        } else {
+          ranked.push({ ...q, metrics: m, baseUnitPrice: m.baseUnitPrice });
+        }
+      });
+
+      ranked.sort((a, b) => {
+        if (Math.abs(a.baseUnitPrice - b.baseUnitPrice) > 1e-9) {
+          return a.baseUnitPrice - b.baseUnitPrice;
+        }
+        return (b.checkDate || "").localeCompare(a.checkDate || "");
+      });
+
+      const bestBase = ranked.length > 0 ? ranked[0].baseUnitPrice : null;
+      ranked.forEach((item, idx) => {
+        item.priceRank = idx + 1;
+        if (bestBase && bestBase > 0) {
+          const pct = ((item.baseUnitPrice - bestBase) / bestBase) * 100;
+          item.diffPct = pct < 0.05 ? 0 : pct;
+        } else {
+          item.diffPct = 0;
+        }
+      });
+
+      references.sort((a, b) => (b.checkDate || "").localeCompare(a.checkDate || ""));
+
+      let latestDate = "";
+      quotes.forEach(q => {
+        if (q.checkDate && q.checkDate > latestDate) latestDate = q.checkDate;
+      });
+
+      return {
+        ranked,
+        references,
+        bestQuote: ranked[0] || null,
+        secondQuote: ranked[1] || null,
+        totalCount: quotes.length,
+        latestDate
+      };
+    }
+
+    /*************************************************************************
+     * 五、LocalStorage 儲存引擎（100% 向下相容 v1.0）與內建 4 筆示範資料
+     *************************************************************************/
+    function createDemoProducts() {
+      const today = getTodayDateString();
+      const threeDaysAgo = getOffsetDateString(-3);
+
+      return [
+        {
+          id: "demo_potato",
+          name: "馬鈴薯",
+          brand: "",
+          category: "生鮮蔬果",
+          groupTag: "#根莖蔬果",
+          dimension: "weight",
+          displayUnit: "per100g",
+          quotes: [
+            {
+              id: "dq_p1", store: "全聯", price: 100, packCount: 1, unitQty: 1, unit: "kg",
+              promoType: "原價", checkDate: today, note: "生鮮袋裝", isReferenceOnly: false, refUnitText: ""
+            },
+            {
+              id: "dq_p2", store: "傳統市場", price: 65, packCount: 1, unitQty: 1, unit: "jin",
+              promoType: "特價", checkDate: today, note: "早市散裝秤重", isReferenceOnly: false, refUnitText: ""
+            }
+          ]
+        },
+        {
+          id: "demo_imei_milk",
+          name: "義美全脂鮮乳",
+          brand: "義美",
+          category: "乳品飲料",
+          groupTag: "#全脂鮮乳",
+          dimension: "volume",
+          displayUnit: "per100ml",
+          quotes: [
+            {
+              id: "dq_m1", store: "全聯", price: 169, packCount: 1, unitQty: 1858, unit: "ml",
+              promoType: "特價", checkDate: today, note: "家庭號單瓶", isReferenceOnly: false, refUnitText: ""
+            },
+            {
+              id: "dq_m2", store: "好市多", price: 299, packCount: 2, unitQty: 2000, unit: "ml",
+              promoType: "會員價", checkDate: today, note: "2瓶大組裝", isReferenceOnly: false, refUnitText: ""
+            }
+          ]
+        },
+        {
+          id: "demo_ruisui_milk",
+          name: "瑞穗全脂鮮乳",
+          brand: "統一瑞穗",
+          category: "乳品飲料",
+          groupTag: "#全脂鮮乳",
+          dimension: "volume",
+          displayUnit: "per100ml",
+          quotes: [
+            {
+              id: "dq_r1", store: "家樂福", price: 175, packCount: 1, unitQty: 1858, unit: "ml",
+              promoType: "原價", checkDate: threeDaysAgo, note: "家庭號", isReferenceOnly: false, refUnitText: ""
+            }
+          ]
+        },
+        {
+          id: "demo_kleenex",
+          name: "舒潔抽取式衛生紙",
+          brand: "舒潔",
+          category: "日用清潔",
+          groupTag: "#抽取式衛生紙",
+          dimension: "count",
+          displayUnit: "per100",
+          quotes: [
+            {
+              id: "dq_k1", store: "全聯", price: 149, packCount: 12, unitQty: 110, unit: "抽",
+              promoType: "特價", checkDate: today, note: "12包一串", isReferenceOnly: false, refUnitText: ""
+            },
+            {
+              id: "dq_k2", store: "好市多", price: 369, packCount: 24, unitQty: 120, unit: "抽",
+              promoType: "會員價", checkDate: today, note: "24包大箱", isReferenceOnly: false, refUnitText: ""
+            }
+          ]
+        }
+      ];
+    }
+
+    function saveData() {
+      try {
+        appState.version = APP_VERSION;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+      } catch (err) {
+        console.error("儲存 localStorage 失敗:", err);
+        showToast("⚠️ 儲存空間不足，請先匯出 JSON 備份", "error");
+      }
+    }
+
+    function migrateProductSchema(p) {
+      if (!DIMENSIONS[p.dimension]) p.dimension = "weight";
+      const dim = DIMENSIONS[p.dimension];
+      if (!dim.displayUnits.some(u => u.id === p.displayUnit)) {
+        p.displayUnit = dim.defaultDisplayUnit;
+      }
+      if (LEGACY_CATEGORY_MAP[p.category]) {
+        p.category = LEGACY_CATEGORY_MAP[p.category];
+      }
+      if (!CATEGORIES.includes(p.category)) {
+        p.category = "其他";
+      }
+      p.groupTag = normalizeGroupTag(p.groupTag || "");
+      if (!Array.isArray(p.quotes)) p.quotes = [];
+
+      // 向下相容遷移 v1.0 舊版計數單位代碼
+      p.quotes.forEach(q => {
+        if (p.dimension === "count" && LEGACY_COUNT_UNIT_MAP[q.unit]) {
+          q.unit = LEGACY_COUNT_UNIT_MAP[q.unit];
+        }
+        if (!q.packCount || q.packCount < 1) q.packCount = 1;
+      });
+    }
+
+    function loadData() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw === null) {
+          appState = {
+            version: APP_VERSION,
+            activeStore: DEFAULT_STORES[0],
+            customStores: [],
+            products: createDemoProducts()
+          };
+          saveData();
+          return;
+        }
+
+        const parsed = JSON.parse(raw);
+        appState = {
+          version: APP_VERSION,
+          activeStore: parsed.activeStore || DEFAULT_STORES[0],
+          customStores: Array.isArray(parsed.customStores) ? parsed.customStores : [],
+          products: Array.isArray(parsed.products) ? parsed.products : []
+        };
+
+        appState.products.forEach(migrateProductSchema);
+
+        if (!getAllStores().includes(appState.activeStore)) {
+          appState.activeStore = DEFAULT_STORES[0];
+        }
+        saveData();
+      } catch (err) {
+        console.error("讀取 localStorage 失敗:", err);
+        appState = {
+          version: APP_VERSION,
+          activeStore: DEFAULT_STORES[0],
+          customStores: [],
+          products: createDemoProducts()
+        };
+        saveData();
+      }
+    }
+
+    /*************************************************************************
+     * 六、一鍵穿透快取強制更新機制（100% 保留 localStorage）
+     *************************************************************************/
+    async function forceHardReload() {
+      const btn = document.getElementById("btn-force-reload");
+      if (btn) btn.disabled = true;
+      showToast("🔄 清除快取並拉取最新版中（本地資料 100% 保留）...", "info");
+
+      try {
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+
+        const baseUrl = window.location.href.split("?")[0];
+        if (window.location.protocol.startsWith("http")) {
+          await fetch(baseUrl, { cache: "no-store" }).catch(() => {});
+          window.location.replace(`${baseUrl}?v=${Date.now()}`);
+        } else {
+          showToast("✅ 快取已清除，所有比價資料完整保留！", "success");
+          if (btn) btn.disabled = false;
+        }
+      } catch (err) {
+        console.warn("強制更新回退:", err);
+        try {
+          window.location.reload();
+        } catch (e) {
+          if (btn) btn.disabled = false;
+        }
+      }
+    }
+
+    /*************************************************************************
+     * 七、Toast 提示與通用彈窗（完全不使用 alert / confirm）
+     *************************************************************************/
+    function showToast(message, type = "success") {
+      const container = document.getElementById("toast-container");
+      if (!container) return;
+      const el = document.createElement("div");
+      el.className = `toast-msg toast-${type}`;
+      el.textContent = message;
+      container.innerHTML = "";
+      container.appendChild(el);
+      setTimeout(() => {
+        el.style.transition = "opacity 0.25s ease";
+        el.style.opacity = "0";
+        setTimeout(() => el.remove(), 260);
+      }, 2400);
+    }
+
+    function openModal({ title, bodyHtml, footerHtml }) {
+      document.getElementById("modal-title").textContent = title;
+      document.getElementById("modal-body").innerHTML = bodyHtml;
+      document.getElementById("modal-footer").innerHTML = footerHtml || "";
+      document.getElementById("modal-backdrop").classList.remove("hidden");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeModal() {
+      document.getElementById("modal-backdrop").classList.add("hidden");
+      document.body.style.overflow = "";
+    }
+
+    document.getElementById("modal-backdrop").addEventListener("click", (e) => {
+      if (e.target.id === "modal-backdrop") closeModal();
+    });
+
+    function openConfirmModal({ title, message, confirmText = "確認", confirmBtnClass = "btn-danger", onConfirm }) {
+      window._pendingConfirmAction = () => {
+        closeModal();
+        if (typeof onConfirm === "function") onConfirm();
+      };
+      openModal({
+        title,
+        bodyHtml: `<p style="margin:0; font-size:14px; color:#334155; line-height:1.6; white-space:pre-line;">${escapeHtml(message)}</p>`,
+        footerHtml: `
+          <button type="button" class="btn btn-soft btn-sm" onclick="closeModal()">取消</button>
+          <button type="button" class="btn ${confirmBtnClass} btn-sm" onclick="window._pendingConfirmAction()">${escapeHtml(confirmText)}</button>
+        `
+      });
+    }
+
+    /*************************************************************************
+     * 八、頂部賣場切換列與底部三大主分頁導覽
+     *************************************************************************/
+    function renderStoreBar() {
+      const bar = document.getElementById("store-pill-bar");
+      if (!bar) return;
+
+      const stores = getAllStores();
+      let html = stores.map(store => {
+        const active = appState.activeStore === store ? "active" : "";
+        return `<button type="button" class="store-pill ${active}" onclick="selectActiveStore('${escapeHtml(store).replace(/'/g, "\\'")}')">${escapeHtml(store)}</button>`;
+      }).join("");
+
+      html += `<button type="button" class="store-pill-add" onclick="openAddStoreModal()">＋ 自訂</button>`;
+      bar.innerHTML = html;
+    }
+
+    function selectActiveStore(storeName) {
+      appState.activeStore = storeName;
+      saveData();
+      renderStoreBar();
+
+      // 同步帶入尚未手動覆蓋的表單賣場下拉選單
+      const qStoreEl = document.getElementById("q-store");
+      if (qStoreEl && !uiState.editingQuoteId) qStoreEl.value = storeName;
+
+      const toggleLabel = document.getElementById("btn-toggle-quote-form-label");
+      if (toggleLabel && !uiState.editingQuoteId) {
+        toggleLabel.textContent = `新增「${storeName}」報價`;
+      }
+
+      if (!uiState.pk.a.storeManuallySet) {
+        uiState.pk.a.store = storeName;
+        const pkStoreA = document.getElementById("pk-a-store");
+        if (pkStoreA) pkStoreA.value = storeName;
+      }
+
+      showToast(`📍 目前預設賣場：${storeName}`, "info");
+    }
+
+    function openAddStoreModal() {
+      openModal({
+        title: "➕ 新增自訂賣場",
+        bodyHtml: `
+          <div class="stack-sm">
+            <p class="text-xs text-muted" style="margin:0;">新增後會立即加入頂部快速切換列，並永久儲存於手機中。</p>
+            <div>
+              <label class="field-label">賣場名稱</label>
+              <input id="new-store-name-input" type="text" class="input input-bold" placeholder="例如：美廉社、小北百貨、酷澎" />
+            </div>
+          </div>
+        `,
+        footerHtml: `
+          <button type="button" class="btn btn-soft btn-sm" onclick="closeModal()">取消</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="confirmAddCustomStore()">儲存並選用</button>
+        `
+      });
+      setTimeout(() => document.getElementById("new-store-name-input")?.focus(), 100);
+    }
+
+    function confirmAddCustomStore() {
+      const name = (document.getElementById("new-store-name-input")?.value || "").trim();
+      if (!name) {
+        showToast("請輸入賣場名稱", "warning");
+        return;
+      }
+      if (getAllStores().includes(name)) {
+        appState.activeStore = name;
+        saveData();
+        renderStoreBar();
+        closeModal();
+        showToast(`賣場「${name}」已存在，已直接切換`, "info");
+        return;
+      }
+      appState.customStores.push(name);
+      appState.activeStore = name;
+      saveData();
+      renderStoreBar();
+      closeModal();
+      if (uiState.activeTab === "manage") renderMainContent();
+      showToast(`✅ 已新增並切換至「${name}」`, "success");
+    }
+
+    function renderBottomNav() {
+      const nav = document.getElementById("bottom-nav-grid");
+      if (!nav) return;
+      const tabs = [
+        { id: "library", icon: "📦", label: "我的比價庫" },
+        { id: "pk", icon: "⚖️", label: "貨架即時 PK" },
+        { id: "manage", icon: "📊", label: "報表與管理" }
+      ];
+      nav.innerHTML = tabs.map(t => `
+        <button type="button" class="nav-item ${uiState.activeTab === t.id ? "active" : ""}" onclick="switchMainTab('${t.id}')">
+          <span class="nav-item-icon">${t.icon}</span>
+          <span>${t.label}</span>
+          <span class="nav-indicator"></span>
+        </button>
+      `).join("");
+    }
+
+    function switchMainTab(tabId) {
+      if (tabId === "library" && uiState.activeTab === "library" && uiState.selectedProductId) {
+        uiState.selectedProductId = null;
+        uiState.showQuoteForm = false;
+        uiState.editingQuoteId = null;
+      }
+      uiState.activeTab = tabId;
+      renderBottomNav();
+      renderMainContent();
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+
+    function renderMainContent() {
+      if (uiState.activeTab === "library") {
+        if (uiState.selectedProductId && appState.products.some(p => p.id === uiState.selectedProductId)) {
+          renderProductDetail();
+        } else {
+          uiState.selectedProductId = null;
+          renderLibraryList();
+        }
+      } else if (uiState.activeTab === "pk") {
+        renderPkView();
+      } else {
+        renderManageView();
+      }
+    }
+
+    /*************************************************************************
+     * 九、分頁一（A）：📦 我的比價庫 — 階梯式檢索與商品清單
+     *************************************************************************/
+    function getFilteredProducts() {
+      const q = (uiState.searchQuery || "").trim().toLowerCase();
+      const cat = uiState.selectedCategory;
+
+      const list = appState.products.filter(p => cat === "全部" || p.category === cat);
+      if (!q) {
+        return list.slice().sort((a, b) => {
+          const aL = analyzeProductQuotes(a).latestDate || "";
+          const bL = analyzeProductQuotes(b).latestDate || "";
+          return bL.localeCompare(aL);
+        });
+      }
+
+      // 階梯式優先權：1.品名完全比對 -> 2.品名前綴 -> 3.品名子字串 -> 4.品牌/群組/分類模糊
+      const scored = [];
+      list.forEach(p => {
+        const name = (p.name || "").toLowerCase();
+        const brand = (p.brand || "").toLowerCase();
+        const group = (p.groupTag || "").toLowerCase();
+        const catText = (p.category || "").toLowerCase();
+        let score = 0;
+        if (name === q) score = 100;
+        else if (name.startsWith(q)) score = 80;
+        else if (name.includes(q)) score = 60;
+        else if (brand.includes(q) || group.includes(q)) score = 40;
+        else if (catText.includes(q)) score = 20;
+        if (score > 0) scored.push({ p, score });
+      });
+
+      scored.sort((a, b) => b.score - a.score);
+      return scored.map(x => x.p);
+    }
+
+    function renderLibraryList() {
+      const main = document.getElementById("main-container");
+      const allCats = ["全部", ...CATEGORIES];
+
+      main.innerHTML = `
+        <div class="stack">
+          <div class="card stack-sm" style="padding: 12px;">
+            <div class="row">
+              <div class="search-wrap">
+                <span class="search-icon">🔍</span>
+                <input
+                  id="library-search-input"
+                  type="text"
+                  class="search-input"
+                  value="${escapeHtml(uiState.searchQuery)}"
+                  oninput="handleLibrarySearch(this.value)"
+                  placeholder="搜尋品名、品牌或 #群組..."
+                />
+                <button
+                  id="library-search-clear"
+                  type="button"
+                  class="search-clear ${uiState.searchQuery ? "" : "hidden"}"
+                  onclick="clearLibrarySearch()"
+                >✕</button>
+              </div>
+              <button type="button" class="btn btn-primary btn-sm" style="padding: 10px 13px;" onclick="openProductModal()">➕ 新增商品</button>
+            </div>
+
+            <div class="cat-pills no-scrollbar">
+              ${allCats.map(cat => `
+                <button
+                  type="button"
+                  class="cat-pill ${uiState.selectedCategory === cat ? "active" : ""}"
+                  onclick="selectLibraryCategory('${cat}')"
+                >${cat}</button>
+              `).join("")}
+            </div>
+          </div>
+
+          <div id="library-list-body" class="stack-sm"></div>
+        </div>
+      `;
+
+      renderLibraryListItems();
+    }
+
+    function renderLibraryListItems() {
+      const container = document.getElementById("library-list-body");
+      if (!container) return;
+
+      const products = getFilteredProducts();
+      const q = (uiState.searchQuery || "").trim();
+      const hasExactMatch = q && appState.products.some(p => (p.name || "").trim().toLowerCase() === q.toLowerCase());
+
+      let html = "";
+
+      // 若有搜尋詞且無完全同名商品，頂部提供快捷建立鈕
+      if (q && !hasExactMatch && products.length > 0) {
+        html += `
+          <button
+            type="button"
+            class="btn btn-emerald-soft btn-full"
+            style="justify-content: space-between; padding: 10px 14px; font-size: 13px;"
+            onclick="openProductModal(null, '${escapeHtml(q).replace(/'/g, "\\'")}')"
+          >
+            <span>➕ 直接建立新商品「${escapeHtml(q)}」</span>
+            <span>→</span>
+          </button>
+        `;
+      }
+
+      if (products.length === 0) {
+        html += `
+          <div class="card text-center stack-sm" style="padding: 28px 16px;">
+            <div style="font-size: 38px;">🛒</div>
+            <div style="font-size: 15px; font-weight: 800; color: #334155;">
+              ${q ? `找不到「${escapeHtml(q)}」的比價資料` : "目前尚無比價商品"}
+            </div>
+            <div class="text-xs text-muted">
+              ${q ? "點擊下方按鈕立即建立商品並記錄價格" : "點擊下方按鈕建立您的第一項比價商品"}
+            </div>
+            <div style="padding-top: 6px;">
+              <button
+                type="button"
+                class="btn btn-primary"
+                onclick="openProductModal(null, '${escapeHtml(q).replace(/'/g, "\\'")}')"
+              >➕ ${q ? `直接建立新商品「${escapeHtml(q)}」` : "建立新商品"}</button>
+            </div>
+          </div>
+        `;
+        container.innerHTML = html;
+        return;
+      }
+
+      html += products.map(p => {
+        const dim = getDimensionConfig(p.dimension);
+        const stats = analyzeProductQuotes(p);
+        const best = stats.bestQuote;
+        const bestVal = best ? getDisplayPrice(p.dimension, p.displayUnit, best.baseUnitPrice) : null;
+        const unitSuffix = best ? getEffectiveUnitSuffix(p.dimension, p.displayUnit, best.unit) : getDisplayUnitConfig(p.dimension, p.displayUnit).unitText;
+        const fresh = stats.latestDate ? getFreshnessInfo(stats.latestDate) : null;
+
+        return `
+          <div class="card card-clickable" onclick="openProductDetail('${p.id}')">
+            <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;">
+              <div style="min-width: 0; flex: 1;">
+                <div class="row-wrap">
+                  <h3 class="prod-name">${escapeHtml(p.name)}</h3>
+                  ${p.brand ? `<span class="badge badge-slate">${escapeHtml(p.brand)}</span>` : ""}
+                </div>
+                <div class="row-wrap" style="margin-top: 6px;">
+                  <span class="badge badge-emerald">${escapeHtml(p.category)}</span>
+                  <span class="badge badge-slate">${dim.icon} ${dim.label}</span>
+                  ${p.groupTag ? `<span class="badge badge-sky">${escapeHtml(p.groupTag)}</span>` : ""}
+                </div>
+              </div>
+
+              <div class="text-right" style="flex-shrink: 0;">
+                ${best ? `
+                  <div style="margin-bottom: 4px;">
+                    <span class="badge badge-pill badge-winner-soft">🏆 ${escapeHtml(best.store)}</span>
+                  </div>
+                  <div class="price-figure text-primary">$${formatUnitPrice(bestVal)}</div>
+                  <div class="text-xxs text-muted font-bold" style="margin-top: 2px;">每 ${escapeHtml(unitSuffix)}</div>
+                ` : `
+                  <span class="badge badge-slate" style="padding: 6px 10px;">尚無換算價</span>
+                `}
+              </div>
+            </div>
+
+            <div class="card-footer-bar text-xxs text-muted">
+              <div class="row" style="min-width: 0; flex: 1;">
+                <span class="font-bold text-sub" style="flex-shrink:0;">📋 ${stats.totalCount} 筆報價</span>
+                ${best ? `<span class="truncate">${escapeHtml(formatHumanSpec(p.dimension, best))}</span>` : ""}
+              </div>
+              <div class="row" style="flex-shrink: 0; gap: 5px;">
+                ${stats.latestDate ? `
+                  <span>📅 ${stats.latestDate}</span>
+                  ${fresh ? `<span class="badge badge-pill ${fresh.badgeClass}" style="font-size:10px; padding:1px 6px;">${fresh.label}</span>` : ""}
+                ` : `<span>點擊記價 →</span>`}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      container.innerHTML = html;
+    }
+
+    function handleLibrarySearch(val) {
+      uiState.searchQuery = val;
+      document.getElementById("library-search-clear")?.classList.toggle("hidden", !val);
+      renderLibraryListItems();
+    }
+
+    function clearLibrarySearch() {
+      uiState.searchQuery = "";
+      const input = document.getElementById("library-search-input");
+      if (input) {
+        input.value = "";
+        input.focus();
+      }
+      document.getElementById("library-search-clear")?.classList.add("hidden");
+      renderLibraryListItems();
+    }
+
+    function selectLibraryCategory(cat) {
+      uiState.selectedCategory = cat;
+      renderLibraryList();
+    }
+
+    function openProductDetail(productId) {
+      uiState.selectedProductId = productId;
+      uiState.editingQuoteId = null;
+      uiState.showGroupRankingPanel = false;
+      const prod = appState.products.find(p => p.id === productId);
+      uiState.showQuoteForm = prod && prod.quotes.length === 0;
+      renderProductDetail();
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+
+    function backToLibraryList() {
+      uiState.selectedProductId = null;
+      uiState.showQuoteForm = false;
+      uiState.editingQuoteId = null;
+      renderLibraryList();
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+
+    /*************************************************************************
+     * 十、分頁一（B）：商品詳情頁（v1.1 直覺白話表單 + 跨品牌排行 + 單位切換）
+     *************************************************************************/
+    function getCurrentProduct() {
+      return appState.products.find(p => p.id === uiState.selectedProductId) || null;
+    }
+
+    function renderProductDetail() {
+      const p = getCurrentProduct();
+      if (!p) {
+        backToLibraryList();
+        return;
+      }
+
+      const main = document.getElementById("main-container");
+      const dim = getDimensionConfig(p.dimension);
+      const stats = analyzeProductQuotes(p);
+      const best = stats.bestQuote;
+      const bestVal = best ? getDisplayPrice(p.dimension, p.displayUnit, best.baseUnitPrice) : null;
+      const bestUnitSuffix = best ? getEffectiveUnitSuffix(p.dimension, p.displayUnit, best.unit) : getDisplayUnitConfig(p.dimension, p.displayUnit).unitText;
+      const uniformCountUnit = detectUniformCountUnit(p);
+
+      // 收集同群組跨品牌商品與綜合排行榜資料
+      const groupPeers = p.groupTag
+        ? appState.products.filter(item => item.groupTag && item.groupTag === p.groupTag)
+        : [];
+
+      let groupCombinedRanking = [];
+      if (groupPeers.length > 1) {
+        groupPeers.forEach(peer => {
+          if (peer.dimension !== p.dimension) return;
+          const peerStats = analyzeProductQuotes(peer);
+          peerStats.ranked.forEach(q => {
+            groupCombinedRanking.push({
+              productId: peer.id,
+              productName: peer.name,
+              brand: peer.brand,
+              quote: q,
+              baseUnitPrice: q.baseUnitPrice
+            });
+          });
+        });
+        groupCombinedRanking.sort((a, b) => a.baseUnitPrice - b.baseUnitPrice);
+      }
+      const groupLowestBase = groupCombinedRanking.length > 0 ? groupCombinedRanking[0].baseUnitPrice : Infinity;
+
+      // 報價排序
+      const displayRanked = stats.ranked.slice();
+      if (uiState.quoteSort === "date") {
+        displayRanked.sort((a, b) => {
+          const cmp = (b.checkDate || "").localeCompare(a.checkDate || "");
+          return cmp !== 0 ? cmp : a.baseUnitPrice - b.baseUnitPrice;
+        });
+      }
+
+      const editingQuote = uiState.editingQuoteId
+        ? p.quotes.find(q => q.id === uiState.editingQuoteId) || null
+        : null;
+
+      main.innerHTML = `
+        <div class="stack">
+          <!-- 1. 商品頂部資訊與跨品牌群組比價列 -->
+          <div class="card">
+            <div class="row-between" style="margin-bottom: 10px;">
+              <button type="button" class="btn btn-soft btn-sm" onclick="backToLibraryList()">← 返回清單</button>
+              <div class="row" style="gap: 6px;">
+                <button type="button" class="btn btn-soft btn-sm" onclick="openProductModal('${p.id}')">✏️ 編輯</button>
+                <button type="button" class="btn btn-rose-soft btn-sm" onclick="confirmDeleteProduct('${p.id}')">🗑️</button>
+              </div>
+            </div>
+
+            <div class="row-wrap">
+              <h2 style="margin: 0; font-size: 20px; font-weight: 900; line-height: 1.25;">${escapeHtml(p.name)}</h2>
+              ${p.brand ? `<span class="badge badge-slate">${escapeHtml(p.brand)}</span>` : ""}
+            </div>
+            <div class="row-wrap" style="margin-top: 6px;">
+              <span class="badge badge-emerald">${escapeHtml(p.category)}</span>
+              <span class="badge badge-slate">${dim.icon} ${dim.label}</span>
+              ${p.groupTag ? `<span class="badge badge-sky">${escapeHtml(p.groupTag)}</span>` : ""}
+            </div>
+
+            ${groupPeers.length > 1 ? `
+              <div style="margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);">
+                <div class="row-between" style="margin-bottom: 7px;">
+                  <span class="text-xxs font-black" style="color: #0369a1;">🔗 同群組跨品牌比價（${escapeHtml(p.groupTag)}）</span>
+                  ${groupCombinedRanking.length > 0 ? `
+                    <button type="button" class="btn btn-sky-soft btn-xs" onclick="toggleGroupRankingPanel()">
+                      ${uiState.showGroupRankingPanel ? "收合總排行 ▲" : "📊 跨品牌總排行 ▼"}
+                    </button>
+                  ` : ""}
+                </div>
+
+                <!-- 快速切換膠囊 -->
+                <div class="store-pills no-scrollbar">
+                  ${groupPeers.map(peer => {
+                    const isSelf = peer.id === p.id;
+                    const peerBest = analyzeProductQuotes(peer).bestQuote;
+                    const sameDim = peer.dimension === p.dimension;
+                    const dispUnitId = sameDim ? p.displayUnit : peer.displayUnit;
+                    const peerVal = peerBest ? getDisplayPrice(peer.dimension, dispUnitId, peerBest.baseUnitPrice) : null;
+                    const peerSuffix = peerBest ? getEffectiveUnitSuffix(peer.dimension, dispUnitId, peerBest.unit) : "";
+                    const isWinner = sameDim && peerBest && Math.abs(peerBest.baseUnitPrice - groupLowestBase) < 1e-9;
+                    return `
+                      <button
+                        type="button"
+                        onclick="openProductDetail('${peer.id}')"
+                        class="store-pill"
+                        style="${isSelf
+                          ? "background:#0284c7; border-color:#0284c7; color:#fff;"
+                          : "background:#f0f9ff; border-color:#bae6fd; color:#0c4a6e;"}"
+                      >
+                        ${isWinner ? "🏆 " : ""}${escapeHtml(peer.name)}
+                        ${peerVal !== null ? ` · $${formatUnitPrice(peerVal)}/${escapeHtml(peerSuffix)}` : ""}
+                      </button>
+                    `;
+                  }).join("")}
+                </div>
+
+                <!-- 跨品牌綜合排行榜面板 -->
+                ${uiState.showGroupRankingPanel && groupCombinedRanking.length > 0 ? `
+                  <div class="group-rank-panel">
+                    ${groupCombinedRanking.map((row, idx) => {
+                      const val = getDisplayPrice(p.dimension, p.displayUnit, row.baseUnitPrice);
+                      const suf = getEffectiveUnitSuffix(p.dimension, p.displayUnit, row.quote.unit);
+                      const diffPct = groupLowestBase > 0 ? ((row.baseUnitPrice - groupLowestBase) / groupLowestBase) * 100 : 0;
+                      const isTop = idx === 0 || diffPct < 0.05;
+                      return `
+                        <div class="group-rank-row ${isTop ? "is-top" : ""} ${row.productId === p.id ? "is-current" : ""}" onclick="openProductDetail('${row.productId}')">
+                          <div style="min-width: 0; flex: 1;">
+                            <div class="row-wrap" style="gap: 4px;">
+                              <span class="badge ${isTop ? "badge-winner" : "badge-slate"}" style="font-size:10px;">${isTop ? "🏆 #1" : `#${idx + 1}`}</span>
+                              <strong style="color:#0f172a;">${escapeHtml(row.productName)}</strong>
+                              <span class="badge badge-emerald" style="font-size:10px;">${escapeHtml(row.quote.store)}</span>
+                            </div>
+                            <div class="text-xxs text-muted" style="margin-top: 2px;">${escapeHtml(formatHumanSpec(p.dimension, row.quote))}</div>
+                          </div>
+                          <div class="text-right" style="flex-shrink: 0;">
+                            <div style="font-size: 14px; font-weight: 900; color: ${isTop ? "#16a34a" : "#0f172a"};">$${formatUnitPrice(val)}<span class="text-xxs text-muted">/${escapeHtml(suf)}</span></div>
+                            <div class="text-xxs font-bold" style="color: ${isTop ? "#16a34a" : "#64748b"};">${isTop ? "群組最省" : `+${diffPct.toFixed(1)}%`}</div>
+                          </div>
+                        </div>
+                      `;
+                    }).join("")}
+                  </div>
+                ` : ""}
+              </div>
+            ` : ""}
+          </div>
+
+          <!-- 2. ⚖️ 一鍵切換顯示基準單位 -->
+          <div class="card" style="padding: 12px;">
+            <div class="row-between" style="margin-bottom: 8px;">
+              <span class="text-xs font-black">⚖️ 一鍵切換顯示單位</span>
+              <span class="text-xxs text-muted">點擊即時重算全部價格</span>
+            </div>
+            <div class="seg-grid" style="grid-template-columns: repeat(${dim.displayUnits.length}, minmax(0, 1fr));">
+              ${dim.displayUnits.map(du => {
+                let btnLabel = du.label;
+                if (p.dimension === "count" && uniformCountUnit) {
+                  btnLabel = du.multiplier === 100 ? `元/100${uniformCountUnit}` : `元/1${uniformCountUnit}`;
+                }
+                return `
+                  <button
+                    type="button"
+                    class="seg-btn ${p.displayUnit === du.id ? "active" : ""}"
+                    onclick="switchProductDisplayUnit('${p.id}', '${du.id}')"
+                  >${escapeHtml(btnLabel)}</button>
+                `;
+              }).join("")}
+            </div>
+          </div>
+
+          <!-- 3. 🏆 歷史最低價看板 -->
+          ${best ? `
+            <div class="hero-banner">
+              <div class="row-between">
+                <span class="badge badge-pill" style="background: rgba(255,255,255,0.22); color: #fff; font-weight: 800;">🏆 歷史最低價</span>
+                <span class="hero-sub">📅 ${escapeHtml(best.checkDate)}</span>
+              </div>
+              <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: 10px;">
+                <div style="min-width: 0;">
+                  <div style="font-size: 16px; font-weight: 900;">
+                    ${escapeHtml(best.store)}
+                    <span class="badge" style="background: rgba(0,0,0,0.2); color: #ecfdf5; margin-left: 4px;">${escapeHtml(getPromoConfig(best.promoType).label)}</span>
+                  </div>
+                  <div class="hero-sub" style="margin-top: 4px;">${escapeHtml(formatHumanSpec(p.dimension, best))}</div>
+                </div>
+                <div class="text-right" style="flex-shrink: 0;">
+                  <div class="hero-price">$${formatUnitPrice(bestVal)}</div>
+                  <div class="hero-sub" style="margin-top: 3px;">每 ${escapeHtml(bestUnitSuffix)}</div>
+                </div>
+              </div>
+              ${stats.secondQuote ? (() => {
+                const savePct = ((stats.secondQuote.baseUnitPrice - best.baseUnitPrice) / stats.secondQuote.baseUnitPrice) * 100;
+                return savePct >= 0.1
+                  ? `<div class="hero-divider">💡 比第二便宜（${escapeHtml(stats.secondQuote.store)}）再便宜 ${savePct.toFixed(1)}%</div>`
+                  : `<div class="hero-divider">💡 與 ${escapeHtml(stats.secondQuote.store)} 並列目前最低價</div>`;
+              })() : ""}
+            </div>
+          ` : `
+            <div class="card text-center" style="border-style: dashed; background: #f8fafc;">
+              <div class="text-xs font-black text-sub">尚無可換算的最低價紀錄</div>
+              <div class="text-xxs text-muted" style="margin-top: 4px;">點擊下方「＋ 新增賣場報價」即可開始自動比價</div>
+            </div>
+          `}
+
+          <!-- 4. v1.1 直覺白話 新增／編輯報價表單 -->
+          <div id="quote-form-wrapper" class="accordion-card ${editingQuote ? "is-editing" : ""}">
+            <button type="button" class="accordion-trigger ${uiState.showQuoteForm ? "open" : ""}" onclick="toggleQuoteForm()">
+              <div class="row">
+                <span class="icon-circle ${editingQuote ? "amber" : ""}">${editingQuote ? "✏️" : "＋"}</span>
+                <span id="btn-toggle-quote-form-label" style="font-size: 14px; font-weight: 800; color: #0f172a;">
+                  ${editingQuote ? `編輯報價（${escapeHtml(editingQuote.store)}）` : `新增「${escapeHtml(appState.activeStore)}」報價`}
+                </span>
+              </div>
+              <span class="text-xs font-black text-primary">${uiState.showQuoteForm ? "收合 ▲" : "展開填寫 ▼"}</span>
+            </button>
+            ${uiState.showQuoteForm ? renderV11QuoteFormInner(p, editingQuote) : ""}
+          </div>
+
+          <!-- 5. 各賣場報價列表 -->
+          <div class="stack-sm">
+            <div class="row-between" style="padding: 0 2px;">
+              <h3 style="margin: 0; font-size: 14px; font-weight: 900;">📋 各賣場報價（${stats.totalCount}）</h3>
+              <div class="sort-toggle">
+                <button type="button" class="sort-btn ${uiState.quoteSort === "price" ? "active" : ""}" onclick="setQuoteSort('price')">由便宜到貴</button>
+                <button type="button" class="sort-btn ${uiState.quoteSort === "date" ? "active" : ""}" onclick="setQuoteSort('date')">最新日期優先</button>
+              </div>
+            </div>
+
+            ${displayRanked.length > 0
+              ? displayRanked.map(q => renderQuoteCard(p, q)).join("")
+              : (stats.references.length === 0 ? `<div class="card text-center text-xs text-muted">尚未記錄任何賣場報價，請於上方表單新增第一筆價格。</div>` : "")}
+
+            ${stats.references.length > 0 ? `
+              <div class="stack-sm" style="margin-top: 6px;">
+                <div class="text-xs font-black text-muted" style="padding: 0 2px;">📌 參考報價（不參與單位換算排名）</div>
+                ${stats.references.map(q => renderReferenceQuoteCard(p, q)).join("")}
+              </div>
+            ` : ""}
+          </div>
+        </div>
+      `;
+
+      if (uiState.showQuoteForm) {
+        updateQuoteLivePreview();
+      }
+    }
+
+    /**
+     * v1.1 核心直覺報價表單（白話動態標題 + 折疊式多入組乘法算式列 + 白話即時確認區）
+     */
+    function renderV11QuoteFormInner(p, editingQuote) {
+      const dim = getDimensionConfig(p.dimension);
+      const stores = getAllStores();
+      const defaultStore = editingQuote ? editingQuote.store : appState.activeStore;
+      const storeOptions = stores.includes(defaultStore) ? stores : [defaultStore, ...stores];
+
+      const isRef = editingQuote ? Boolean(editingQuote.isReferenceOnly) : false;
+      const isMulti = editingQuote ? (!isRef && (parseFloat(editingQuote.packCount) || 1) > 1) : false;
+
+      const priceVal = editingQuote ? editingQuote.price : "";
+      const packVal = editingQuote && isMulti ? editingQuote.packCount : "";
+      const qtyVal = editingQuote ? editingQuote.unitQty : "";
+      const unitVal = editingQuote ? getInputUnitConfig(p.dimension, editingQuote.unit).id : dim.defaultInputUnit;
+      const promoVal = editingQuote ? editingQuote.promoType : "原價";
+      const dateVal = editingQuote ? editingQuote.checkDate : uiState.todayDate;
+      const noteVal = editingQuote ? (editingQuote.note || "") : "";
+      const refUnitVal = editingQuote ? (editingQuote.refUnitText || "顆") : "顆";
+
+      const unitOptionsHtml = dim.inputUnits
+        .map(u => `<option value="${u.id}" ${u.id === unitVal ? "selected" : ""}>${u.label}</option>`)
+        .join("");
+
+      return `
+        <div class="stack" style="padding: 14px;">
+          <!-- 列 1：購買賣場 與 查價日期 -->
+          <div class="grid-2">
+            <div>
+              <label class="field-label">購買賣場</label>
+              <select id="q-store" class="select">
+                ${storeOptions.map(s => `<option value="${escapeHtml(s)}" ${s === defaultStore ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}
+              </select>
+            </div>
+            <div>
+              <label class="field-label">查價日期</label>
+              <input id="q-date" type="date" class="input input-muted font-bold" value="${escapeHtml(dateVal)}" />
+            </div>
+          </div>
+
+          <!-- 列 2：價格 (元) *（全寬大輸入格） -->
+          <div>
+            <label class="field-label">價格 (元)<span class="req">*</span></label>
+            <input
+              id="q-price"
+              type="number"
+              inputmode="decimal"
+              step="any"
+              min="0"
+              class="input input-bold"
+              value="${escapeHtml(priceVal)}"
+              oninput="updateQuoteLivePreview()"
+              placeholder="請輸入標價金額（例如 149）"
+            />
+          </div>
+
+          <!-- 列 3：標準計價規格區（單件模式 vs 多入組乘法算式模式） -->
+          <div id="q-standard-area" class="stack-sm ${isRef ? "hidden" : ""}">
+            <!-- 單件預設模式：僅顯示 2 欄（動態白話標題 + 單位），完全隱藏入數 -->
+            <div id="q-single-row" class="grid-2 ${isMulti ? "hidden" : ""}">
+              <div>
+                <label class="field-label">${dim.singleQtyLabel}<span class="req">*</span></label>
+                <input
+                  id="q-single-qty"
+                  type="number"
+                  inputmode="decimal"
+                  step="any"
+                  min="0"
+                  class="input input-bold"
+                  value="${escapeHtml(qtyVal)}"
+                  oninput="syncQuoteQtyFrom('single')"
+                  placeholder="${dim.singleQtyPlaceholder}"
+                />
+              </div>
+              <div>
+                <label class="field-label">單位</label>
+                <select id="q-single-unit" class="select" onchange="syncQuoteUnitFrom('single')">
+                  ${unitOptionsHtml}
+                </select>
+              </div>
+            </div>
+
+            <!-- 多入組乘法算式列（勾選多入組後展開） -->
+            <div id="q-multi-row" class="equation-box ${isMulti ? "" : "hidden"}">
+              <div class="equation-grid">
+                <div>
+                  <label class="field-label">${dim.multiCountLabel}<span class="req">*</span></label>
+                  <input
+                    id="q-multi-pack"
+                    type="number"
+                    inputmode="decimal"
+                    step="any"
+                    min="1"
+                    class="input input-bold"
+                    value="${escapeHtml(packVal)}"
+                    oninput="updateQuoteLivePreview()"
+                    placeholder="如 12"
+                  />
+                </div>
+                <div class="equation-times">×</div>
+                <div>
+                  <label class="field-label">${dim.multiQtyLabel}<span class="req">*</span></label>
+                  <input
+                    id="q-multi-qty"
+                    type="number"
+                    inputmode="decimal"
+                    step="any"
+                    min="0"
+                    class="input input-bold"
+                    value="${escapeHtml(qtyVal)}"
+                    oninput="syncQuoteQtyFrom('multi')"
+                    placeholder="如 110"
+                  />
+                </div>
+                <div>
+                  <label class="field-label">單位</label>
+                  <select id="q-multi-unit" class="select" onchange="syncQuoteUnitFrom('multi')">
+                    ${unitOptionsHtml}
+                  </select>
+                </div>
+              </div>
+              <div id="q-multi-total-helper" class="equation-total-helper">👉 總量自動試算：請輸入幾入與每入規格</div>
+            </div>
+
+            <!-- 多入組折疊開關 -->
+            <label id="q-multipack-card" class="multipack-toggle-card ${isMulti ? "checked" : ""}">
+              <input id="q-multipack-toggle" type="checkbox" ${isMulti ? "checked" : ""} onchange="toggleQuoteMultiPack(this.checked)" />
+              <div class="multipack-toggle-text">
+                📦 這是多入組
+                <span class="multipack-toggle-sub">例如：6瓶裝飲料、12包一串衛生紙、2瓶大組裝</span>
+              </div>
+            </label>
+          </div>
+
+          <!-- 不參與換算之參考報價規格區 -->
+          <div id="q-ref-area" class="grid-2 ${isRef ? "" : "hidden"}">
+            <div>
+              <label class="field-label">參考數量</label>
+              <input id="q-ref-qty" type="number" inputmode="decimal" step="any" min="0" class="input input-bold" style="background: #fffbeb; border-color: #fcd34d;" value="${escapeHtml(isRef ? (qtyVal || 1) : 1)}" oninput="updateQuoteLivePreview()" />
+            </div>
+            <div>
+              <label class="field-label">參考單位名稱</label>
+              <input id="q-ref-unit" type="text" class="input input-bold" style="background: #fffbeb; border-color: #fcd34d;" value="${escapeHtml(refUnitVal)}" oninput="updateQuoteLivePreview()" placeholder="例如：顆、袋、盒" />
+            </div>
+          </div>
+
+          <!-- 促銷類型快捷膠囊 -->
+          <div>
+            <label class="field-label">價格類型 / 促銷自動換算</label>
+            <input type="hidden" id="q-promo" value="${escapeHtml(promoVal)}" />
+            <div id="q-promo-pills" class="row-wrap">
+              ${PROMO_TYPES.map(pt => `
+                <button
+                  type="button"
+                  data-promo="${pt.id}"
+                  class="promo-pill ${pt.id === promoVal ? "active" : ""}"
+                  onclick="selectQuotePromo('${pt.id}')"
+                >${pt.label}</button>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- 備註與參考報價勾選 -->
+          <div class="stack-sm">
+            <input id="q-note" type="text" class="input input-muted" value="${escapeHtml(noteVal)}" placeholder="備註（選填，如：週末限定、需滿額）" />
+            <label class="row" style="cursor: pointer; font-size: 12px; font-weight: 700; color: var(--text-sub);">
+              <input id="q-ref-only" type="checkbox" ${isRef ? "checked" : ""} onchange="toggleQuoteRefOnly(this.checked)" style="width: 18px; height: 18px; accent-color: var(--primary); margin: 0;" />
+              <span>不參與單位換算之參考報價（例如重量商品論顆賣）</span>
+            </label>
+          </div>
+
+          <!-- v1.1 白話即時換算確認區 -->
+          <div id="quote-verify-box" class="verify-box">
+            輸入價格與規格後，將即時顯示白話確認與歷史最低價比較...
+          </div>
+
+          <!-- 送出按鈕列 -->
+          <div class="row">
+            ${editingQuote ? `<button type="button" class="btn btn-soft" onclick="cancelEditQuote()">取消</button>` : ""}
+            <button type="button" class="btn btn-primary btn-full" onclick="saveQuoteFromForm()">
+              ${editingQuote ? "💾 更新此筆報價" : "💾 儲存報價並自動排行"}
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleQuoteForm() {
+      if (uiState.showQuoteForm && uiState.editingQuoteId) uiState.editingQuoteId = null;
+      uiState.showQuoteForm = !uiState.showQuoteForm;
+      renderProductDetail();
+    }
+
+    function toggleQuoteMultiPack(checked) {
+      document.getElementById("q-single-row")?.classList.toggle("hidden", checked);
+      document.getElementById("q-multi-row")?.classList.toggle("hidden", !checked);
+      document.getElementById("q-multipack-card")?.classList.toggle("checked", checked);
+
+      if (checked) {
+        const sQty = document.getElementById("q-single-qty")?.value || "";
+        const sUnit = document.getElementById("q-single-unit")?.value || "";
+        const mQtyEl = document.getElementById("q-multi-qty");
+        const mUnitEl = document.getElementById("q-multi-unit");
+        if (mQtyEl && sQty) mQtyEl.value = sQty;
+        if (mUnitEl && sUnit) mUnitEl.value = sUnit;
+      } else {
+        const mQty = document.getElementById("q-multi-qty")?.value || "";
+        const mUnit = document.getElementById("q-multi-unit")?.value || "";
+        const sQtyEl = document.getElementById("q-single-qty");
+        const sUnitEl = document.getElementById("q-single-unit");
+        if (sQtyEl && mQty) sQtyEl.value = mQty;
+        if (sUnitEl && mUnit) sUnitEl.value = mUnit;
+      }
+      updateQuoteLivePreview();
+    }
+
+    function syncQuoteQtyFrom(source) {
+      const sEl = document.getElementById("q-single-qty");
+      const mEl = document.getElementById("q-multi-qty");
+      if (source === "single" && sEl && mEl) mEl.value = sEl.value;
+      if (source === "multi" && sEl && mEl) sEl.value = mEl.value;
+      updateQuoteLivePreview();
+    }
+
+    function syncQuoteUnitFrom(source) {
+      const sEl = document.getElementById("q-single-unit");
+      const mEl = document.getElementById("q-multi-unit");
+      if (source === "single" && sEl && mEl) mEl.value = sEl.value;
+      if (source === "multi" && sEl && mEl) sEl.value = mEl.value;
+      updateQuoteLivePreview();
+    }
+
+    function toggleQuoteRefOnly(checked) {
+      document.getElementById("q-standard-area")?.classList.toggle("hidden", checked);
+      document.getElementById("q-ref-area")?.classList.toggle("hidden", !checked);
+      updateQuoteLivePreview();
+    }
+
+    function selectQuotePromo(promoId) {
+      const hidden = document.getElementById("q-promo");
+      if (hidden) hidden.value = promoId;
+      document.querySelectorAll("#q-promo-pills button").forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-promo") === promoId);
+      });
+      updateQuoteLivePreview();
+    }
+
+    /** 即時更新報價表單的總量試算與白話確認區 */
+    function updateQuoteLivePreview() {
+      const box = document.getElementById("quote-verify-box");
+      const p = getCurrentProduct();
+      if (!box || !p) return;
+
+      const isRef = document.getElementById("q-ref-only")?.checked || false;
+      const priceVal = document.getElementById("q-price")?.value || "";
+
+      if (isRef) {
+        const refQty = document.getElementById("q-ref-qty")?.value || 1;
+        const refUnit = document.getElementById("q-ref-unit")?.value || "顆";
+        box.className = "verify-box is-ref";
+        box.innerHTML = `
+          <div class="verify-sentence">📌 參考報價模式（不參與單位換算排行）</div>
+          <div>確認內容：花 <strong>$${escapeHtml(priceVal || "--")}</strong> 買 <strong>${escapeHtml(refQty)} ${escapeHtml(refUnit)}</strong></div>
+        `;
+        return;
+      }
+
+      const isMulti = document.getElementById("q-multipack-toggle")?.checked || false;
+      const packCount = isMulti ? parseFloat(document.getElementById("q-multi-pack")?.value) : 1;
+      const unitQty = parseFloat(isMulti ? document.getElementById("q-multi-qty")?.value : document.getElementById("q-single-qty")?.value);
+      const unitId = isMulti ? document.getElementById("q-multi-unit")?.value : document.getElementById("q-single-unit")?.value;
+      const promoType = document.getElementById("q-promo")?.value || "原價";
+      const unitLabel = getInputUnitConfig(p.dimension, unitId).label;
+
+      // 更新多入組乘法算式下方即時總量提示
+      const totalHelper = document.getElementById("q-multi-total-helper");
+      if (totalHelper && isMulti) {
+        if (isFinite(packCount) && packCount > 0 && isFinite(unitQty) && unitQty > 0) {
+          const total = packCount * unitQty;
+          totalHelper.textContent = `👉 總量自動試算：${formatNumberWithCommas(packCount)} × ${formatNumberWithCommas(unitQty)} = ${formatNumberWithCommas(total)} ${unitLabel}`;
+        } else {
+          totalHelper.textContent = `👉 總量自動試算：請填寫「${getDimensionConfig(p.dimension).multiCountLabel}」與「${getDimensionConfig(p.dimension).multiQtyLabel}」`;
+        }
+      }
+
+      const draft = { price: priceVal, packCount, unitQty, unit: unitId, promoType, isReferenceOnly: false };
+      const metrics = calculateQuoteMetrics(p.dimension, draft);
+
+      if (!metrics.valid) {
+        box.className = "verify-box";
+        box.innerHTML = `<span class="text-muted">填寫上方「價格」與「${getDimensionConfig(p.dimension).singleQtyLabel}」後，此處將立即顯示白話確認與換算單價。</span>`;
+        return;
+      }
+
+      const dispVal = getDisplayPrice(p.dimension, p.displayUnit, metrics.baseUnitPrice);
+      const unitSuffix = getEffectiveUnitSuffix(p.dimension, p.displayUnit, unitId);
+      const sentence = buildPlainConfirmationSentence(p.dimension, draft, metrics);
+
+      // 比較現有歷史最低價（編輯時排除自身）
+      const otherQuotes = p.quotes.filter(q => q.id !== uiState.editingQuoteId);
+      let currentBestBase = Infinity;
+      otherQuotes.forEach(q => {
+        const m = calculateQuoteMetrics(p.dimension, q);
+        if (m.valid && m.baseUnitPrice < currentBestBase) currentBestBase = m.baseUnitPrice;
+      });
+
+      let boxClass = "verify-box is-valid";
+      let compareHtml = `<div class="verify-compare-line text-primary">✨ 將成為此商品的第一筆換算報價</div>`;
+
+      if (isFinite(currentBestBase)) {
+        const diffPct = ((metrics.baseUnitPrice - currentBestBase) / currentBestBase) * 100;
+        if (diffPct < -0.05) {
+          boxClass = "verify-box is-best";
+          compareHtml = `<div class="verify-compare-line text-winner">🏆 破歷史新低！比目前最低便宜 ${Math.abs(diffPct).toFixed(1)}%</div>`;
+        } else if (Math.abs(diffPct) <= 0.05) {
+          boxClass = "verify-box is-valid";
+          compareHtml = `<div class="verify-compare-line text-primary">⚖️ 與目前歷史最低價相同</div>`;
+        } else {
+          boxClass = "verify-box is-higher";
+          compareHtml = `<div class="verify-compare-line text-amber">比歷史最低貴 ${diffPct.toFixed(1)}%</div>`;
+        }
+      }
+
+      box.className = boxClass;
+      box.innerHTML = `
+        <div class="verify-sentence">${escapeHtml(sentence)}</div>
+        <div class="verify-price-row">
+          <span class="font-bold">換算單價</span>
+          <span class="verify-price-big">$${formatUnitPrice(dispVal)} <span style="font-size: 13px; font-weight: 700;">/ ${escapeHtml(unitSuffix)}</span></span>
+        </div>
+        ${compareHtml}
+      `;
+    }
+
+    function saveQuoteFromForm() {
+      const p = getCurrentProduct();
+      if (!p) return;
+
+      const store = document.getElementById("q-store")?.value || appState.activeStore;
+      const checkDate = document.getElementById("q-date")?.value || uiState.todayDate;
+      const price = parseFloat(document.getElementById("q-price")?.value);
+      const promoType = document.getElementById("q-promo")?.value || "原價";
+      const note = (document.getElementById("q-note")?.value || "").trim();
+      const isReferenceOnly = document.getElementById("q-ref-only")?.checked || false;
+
+      if (!isFinite(price) || price <= 0) {
+        showToast("請輸入有效的價格金額", "warning");
+        document.getElementById("q-price")?.focus();
+        return;
+      }
+
+      let packCount = 1;
+      let unitQty = 1;
+      let unit = getDimensionConfig(p.dimension).defaultInputUnit;
+      let refUnitText = "";
+
+      if (isReferenceOnly) {
+        unitQty = parseFloat(document.getElementById("q-ref-qty")?.value) || 1;
+        refUnitText = (document.getElementById("q-ref-unit")?.value || "顆").trim();
+      } else {
+        const isMulti = document.getElementById("q-multipack-toggle")?.checked || false;
+        if (isMulti) {
+          packCount = parseFloat(document.getElementById("q-multi-pack")?.value);
+          unitQty = parseFloat(document.getElementById("q-multi-qty")?.value);
+          unit = document.getElementById("q-multi-unit")?.value || unit;
+          if (!isFinite(packCount) || packCount <= 0) {
+            showToast(`請輸入「${getDimensionConfig(p.dimension).multiCountLabel}」`, "warning");
+            document.getElementById("q-multi-pack")?.focus();
+            return;
+          }
+          if (!isFinite(unitQty) || unitQty <= 0) {
+            showToast(`請輸入「${getDimensionConfig(p.dimension).multiQtyLabel}」`, "warning");
+            document.getElementById("q-multi-qty")?.focus();
+            return;
+          }
+        } else {
+          packCount = 1;
+          unitQty = parseFloat(document.getElementById("q-single-qty")?.value);
+          unit = document.getElementById("q-single-unit")?.value || unit;
+          if (!isFinite(unitQty) || unitQty <= 0) {
+            showToast(`請輸入「${getDimensionConfig(p.dimension).singleQtyLabel}」`, "warning");
+            document.getElementById("q-single-qty")?.focus();
+            return;
+          }
+        }
+      }
+
+      const payload = {
+        id: uiState.editingQuoteId || generateId("q"),
+        store,
+        price,
+        packCount,
+        unitQty,
+        unit,
+        promoType,
+        checkDate,
+        note,
+        isReferenceOnly,
+        refUnitText
+      };
+
+      if (uiState.editingQuoteId) {
+        const idx = p.quotes.findIndex(q => q.id === uiState.editingQuoteId);
+        if (idx >= 0) p.quotes[idx] = payload;
+        showToast(`✅ 已更新「${store}」報價`, "success");
+      } else {
+        p.quotes.push(payload);
+        showToast(`✅ 已儲存「${store}」報價並更新排行`, "success");
+      }
+
+      uiState.editingQuoteId = null;
+      uiState.showQuoteForm = false;
+      saveData();
+      renderProductDetail();
+    }
+
+    function renderQuoteCard(p, q) {
+      const isBest = q.priceRank === 1 || q.diffPct === 0;
+      const dispVal = getDisplayPrice(p.dimension, p.displayUnit, q.baseUnitPrice);
+      const unitSuffix = getEffectiveUnitSuffix(p.dimension, p.displayUnit, q.unit);
+      const promoCfg = getPromoConfig(q.promoType);
+      const fresh = getFreshnessInfo(q.checkDate);
+      const isToday = q.checkDate === uiState.todayDate;
+
+      return `
+        <div class="quote-card ${isBest ? "is-winner" : ""}">
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;">
+            <div class="stack-sm" style="gap: 4px; min-width: 0; flex: 1;">
+              <div class="row-wrap">
+                ${isBest
+                  ? `<span class="badge badge-pill badge-winner">🏆 最划算</span>`
+                  : `<span class="badge badge-pill badge-slate">#${q.priceRank} +${q.diffPct.toFixed(1)}%</span>`}
+                <strong style="font-size: 16px;">${escapeHtml(q.store)}</strong>
+                <span class="badge ${promoCfg.badgeClass}">${promoCfg.label}</span>
+              </div>
+              <div class="text-xs font-bold text-sub">${escapeHtml(formatHumanSpec(p.dimension, q))}</div>
+              ${q.promoType === "買一送一" || q.promoType === "第二件5折" ? `
+                <div class="text-xxs font-bold text-amber">⚡ ${escapeHtml(buildPlainConfirmationSentence(p.dimension, q, q.metrics).replace("確認內容：", ""))}</div>
+              ` : ""}
+              ${q.note ? `<div class="text-xxs text-muted">📝 ${escapeHtml(q.note)}</div>` : ""}
+            </div>
+
+            <div class="text-right" style="flex-shrink: 0;">
+              <div class="price-figure ${isBest ? "text-winner" : ""}">$${formatUnitPrice(dispVal)}</div>
+              <div class="text-xxs font-bold text-muted" style="margin-top: 2px;">每 ${escapeHtml(unitSuffix)}</div>
+            </div>
+          </div>
+
+          <div class="card-footer-bar">
+            <div class="row-wrap" style="gap: 5px;">
+              <span class="text-xxs font-bold text-muted">📅 ${escapeHtml(q.checkDate)}</span>
+              <span class="badge badge-pill ${fresh.badgeClass}" style="font-size: 10px;">${fresh.label}</span>
+            </div>
+            <div class="row" style="gap: 5px; margin-left: auto;">
+              <button type="button" class="btn btn-xs ${isToday ? "btn-emerald-soft" : "btn-soft"}" style="${isToday ? "" : "border-color: rgba(15,118,110,0.4); color: var(--primary);"}" onclick="confirmQuoteUnchanged('${p.id}', '${q.id}')">
+                ${isToday ? "✓ 今日已確認" : "✓ 價格未變"}
+              </button>
+              <button type="button" class="btn btn-soft btn-xs" onclick="startEditQuote('${q.id}')">編輯</button>
+              <button type="button" class="btn btn-rose-soft btn-xs" onclick="confirmDeleteQuote('${p.id}', '${q.id}')">刪除</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderReferenceQuoteCard(p, q) {
+      const promoCfg = getPromoConfig(q.promoType);
+      const fresh = getFreshnessInfo(q.checkDate);
+      const isToday = q.checkDate === uiState.todayDate;
+
+      return `
+        <div class="quote-card is-ref">
+          <div class="row-between" style="align-items: flex-start;">
+            <div class="stack-sm" style="gap: 4px;">
+              <div class="row-wrap">
+                <span class="badge badge-pill badge-amber">📌 參考價</span>
+                <strong style="font-size: 15px;">${escapeHtml(q.store)}</strong>
+                <span class="badge ${promoCfg.badgeClass}">${promoCfg.label}</span>
+              </div>
+              ${q.note ? `<div class="text-xxs text-muted">📝 ${escapeHtml(q.note)}</div>` : ""}
+            </div>
+            <div class="text-right" style="flex-shrink: 0;">
+              <div style="font-size: 16px; font-weight: 900;">${escapeHtml(formatHumanSpec(p.dimension, q))}</div>
+              <div class="text-xxs font-bold text-amber">不參與單位換算</div>
+            </div>
+          </div>
+
+          <div class="card-footer-bar">
+            <div class="row-wrap" style="gap: 5px;">
+              <span class="text-xxs font-bold text-muted">📅 ${escapeHtml(q.checkDate)}</span>
+              <span class="badge badge-pill ${fresh.badgeClass}" style="font-size: 10px;">${fresh.label}</span>
+            </div>
+            <div class="row" style="gap: 5px; margin-left: auto;">
+              <button type="button" class="btn btn-xs ${isToday ? "btn-emerald-soft" : "btn-soft"}" onclick="confirmQuoteUnchanged('${p.id}', '${q.id}')">
+                ${isToday ? "✓ 今日已確認" : "✓ 價格未變"}
+              </button>
+              <button type="button" class="btn btn-soft btn-xs" onclick="startEditQuote('${q.id}')">編輯</button>
+              <button type="button" class="btn btn-rose-soft btn-xs" onclick="confirmDeleteQuote('${p.id}', '${q.id}')">刪除</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function toggleGroupRankingPanel() {
+      uiState.showGroupRankingPanel = !uiState.showGroupRankingPanel;
+      renderProductDetail();
+    }
+
+    function switchProductDisplayUnit(productId, displayUnitId) {
+      const p = appState.products.find(x => x.id === productId);
+      if (!p) return;
+      p.displayUnit = displayUnitId;
+      saveData();
+      renderProductDetail();
+    }
+
+    function setQuoteSort(sortMode) {
+      uiState.quoteSort = sortMode;
+      renderProductDetail();
+    }
+
+    function confirmQuoteUnchanged(productId, quoteId) {
+      const p = appState.products.find(x => x.id === productId);
+      const q = p?.quotes.find(x => x.id === quoteId);
+      if (!p || !q) return;
+
+      if (q.checkDate === uiState.todayDate) {
+        showToast(`✓「${q.store}」今日 (${uiState.todayDate}) 已確認過`, "info");
+        return;
+      }
+      q.checkDate = uiState.todayDate;
+      saveData();
+      renderProductDetail();
+      showToast(`✓ 已確認「${q.store}」價格未變，日期更新為 ${uiState.todayDate}`, "success");
+    }
+
+    function startEditQuote(quoteId) {
+      uiState.editingQuoteId = quoteId;
+      uiState.showQuoteForm = true;
+      renderProductDetail();
+      setTimeout(() => {
+        document.getElementById("quote-form-wrapper")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 60);
+    }
+
+    function cancelEditQuote() {
+      uiState.editingQuoteId = null;
+      uiState.showQuoteForm = false;
+      renderProductDetail();
+    }
+
+    function confirmDeleteQuote(productId, quoteId) {
+      const p = appState.products.find(x => x.id === productId);
+      const q = p?.quotes.find(x => x.id === quoteId);
+      if (!p || !q) return;
+
+      openConfirmModal({
+        title: "🗑️ 刪除賣場報價",
+        message: `確定要刪除「${q.store}（${formatHumanSpec(p.dimension, q)}）」這筆報價嗎？此操作無法復原。`,
+        confirmText: "確定刪除",
+        onConfirm: () => {
+          p.quotes = p.quotes.filter(x => x.id !== quoteId);
+          if (uiState.editingQuoteId === quoteId) {
+            uiState.editingQuoteId = null;
+            uiState.showQuoteForm = false;
+          }
+          saveData();
+          renderProductDetail();
+          showToast("🗑️ 已刪除該筆報價", "info");
+        }
+      });
+    }
+
+    /*************************************************************************
+     * 十一、商品主檔 新增／編輯／刪除 彈窗
+     *************************************************************************/
+    function openProductModal(productId = null, prefillName = "") {
+      const existing = productId ? appState.products.find(p => p.id === productId) : null;
+      const hasQuotes = existing && existing.quotes.length > 0;
+      const existingGroups = Array.from(new Set(appState.products.map(p => p.groupTag).filter(Boolean)));
+
+      const nameVal = existing ? existing.name : prefillName;
+      const brandVal = existing ? (existing.brand || "") : "";
+      const catVal = existing ? existing.category : CATEGORIES[0];
+      const groupVal = existing ? (existing.groupTag || "") : "";
+      const dimVal = existing ? existing.dimension : "weight";
+
+      openModal({
+        title: existing ? "✏️ 編輯商品資料" : "➕ 新增比價商品",
+        bodyHtml: `
+          <div class="stack">
+            <div>
+              <label class="field-label">商品名稱<span class="req">*</span></label>
+              <input id="pm-name" type="text" class="input input-bold" value="${escapeHtml(nameVal)}" placeholder="例如：馬鈴薯、義美全脂鮮乳" />
+            </div>
+
+            <div class="grid-2">
+              <div>
+                <label class="field-label">品牌（選填）</label>
+                <input id="pm-brand" type="text" class="input" value="${escapeHtml(brandVal)}" placeholder="例如：義美、舒潔" />
+              </div>
+              <div>
+                <label class="field-label">商品分類</label>
+                <select id="pm-category" class="select">
+                  ${CATEGORIES.map(c => `<option value="${c}" ${c === catVal ? "selected" : ""}>${c}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="field-label">計價方式（決定換算單位）</label>
+              <select id="pm-dimension" class="select" ${hasQuotes ? "disabled" : ""}>
+                <option value="weight" ${dimVal === "weight" ? "selected" : ""}>⚖️ 重量類（公克、公斤、台斤、台兩、磅、盎司）</option>
+                <option value="volume" ${dimVal === "volume" ? "selected" : ""}>💧 容量類（毫升、公升、加侖）</option>
+                <option value="count" ${dimVal === "count" ? "selected" : ""}>🔢 計數類（顆、個、包、袋、瓶、抽、捲、盒...）</option>
+              </select>
+              ${hasQuotes ? `<div class="text-xxs font-bold text-amber" style="margin-top: 4px;">⚠️ 此商品已有報價紀錄，為防止換算衝突已鎖定計價方式。</div>` : ""}
+            </div>
+
+            <div>
+              <label class="field-label">同類比價群組標籤（選填，跨品牌比價用）</label>
+              <input id="pm-group" type="text" class="input" value="${escapeHtml(groupVal)}" placeholder="例如：#全脂鮮乳、#抽取式衛生紙" />
+              ${existingGroups.length > 0 ? `
+                <div class="row-wrap" style="margin-top: 7px;">
+                  ${existingGroups.map(g => `
+                    <button type="button" class="btn btn-sky-soft btn-xs" onclick="document.getElementById('pm-group').value='${escapeHtml(g).replace(/'/g, "\\'")}'">${escapeHtml(g)}</button>
+                  `).join("")}
+                </div>
+              ` : ""}
+            </div>
+          </div>
+        `,
+        footerHtml: `
+          <button type="button" class="btn btn-soft btn-sm" onclick="closeModal()">取消</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="saveProductFromModal('${existing ? existing.id : ""}')">
+            ${existing ? "💾 儲存修改" : "➕ 建立並開始記價"}
+          </button>
+        `
+      });
+
+      if (!existing) {
+        setTimeout(() => document.getElementById("pm-name")?.focus(), 100);
+      }
+    }
+
+    function saveProductFromModal(existingId) {
+      const name = (document.getElementById("pm-name")?.value || "").trim();
+      const brand = (document.getElementById("pm-brand")?.value || "").trim();
+      const category = document.getElementById("pm-category")?.value || CATEGORIES[0];
+      const dimension = document.getElementById("pm-dimension")?.value || "weight";
+      const groupTag = normalizeGroupTag(document.getElementById("pm-group")?.value || "");
+
+      if (!name) {
+        showToast("請輸入商品名稱", "warning");
+        document.getElementById("pm-name")?.focus();
+        return;
+      }
+
+      if (existingId) {
+        const p = appState.products.find(x => x.id === existingId);
+        if (p) {
+          p.name = name;
+          p.brand = brand;
+          p.category = category;
+          p.groupTag = groupTag;
+          if (p.quotes.length === 0 && p.dimension !== dimension) {
+            p.dimension = dimension;
+            p.displayUnit = getDimensionConfig(dimension).defaultDisplayUnit;
+          }
+          saveData();
+          closeModal();
+          renderMainContent();
+          showToast(`✅ 已更新商品「${name}」`, "success");
+        }
+      } else {
+        const newProd = {
+          id: generateId("prod"),
+          name,
+          brand,
+          category,
+          groupTag,
+          dimension,
+          displayUnit: getDimensionConfig(dimension).defaultDisplayUnit,
+          quotes: []
+        };
+        appState.products.unshift(newProd);
+        saveData();
+        closeModal();
+        uiState.searchQuery = "";
+        uiState.selectedCategory = "全部";
+        openProductDetail(newProd.id);
+        showToast(`✅ 已建立「${name}」，可直接輸入價格`, "success");
+      }
+    }
+
+    function confirmDeleteProduct(productId) {
+      const p = appState.products.find(x => x.id === productId);
+      if (!p) return;
+
+      openConfirmModal({
+        title: "🗑️ 刪除商品與全部報價",
+        message: `確定要刪除「${p.name}」以及旗下的 ${p.quotes.length} 筆報價紀錄嗎？此操作無法復原。`,
+        confirmText: "確定刪除",
+        onConfirm: () => {
+          appState.products = appState.products.filter(x => x.id !== productId);
+          saveData();
+          backToLibraryList();
+          showToast(`🗑️ 已刪除「${p.name}」`, "info");
+        }
+      });
+    }
+
+    /*************************************************************************
+     * 十二、分頁二：⚖️ 貨架即時 PK（同步套用 v1.1 直覺白話表單與多入組算式列）
+     *************************************************************************/
+    function renderPkView() {
+      const main = document.getElementById("main-container");
+      const dim = getDimensionConfig(uiState.pk.dimension);
+      const stores = getAllStores();
+
+      if (!dim.inputUnits.some(u => u.id === uiState.pk.a.unit)) uiState.pk.a.unit = dim.defaultInputUnit;
+      if (!dim.inputUnits.some(u => u.id === uiState.pk.b.unit)) uiState.pk.b.unit = dim.defaultInputUnit;
+      if (!dim.displayUnits.some(u => u.id === uiState.pk.displayUnit)) uiState.pk.displayUnit = dim.defaultDisplayUnit;
+
+      const renderSideCard = (side, label, badgeStyle) => {
+        const s = uiState.pk[side];
+        const pkPromos = [
+          { id: "原價", label: "無" },
+          { id: "買一送一", label: "⚡買一送一" },
+          { id: "第二件5折", label: "⚡第二件5折" }
+        ];
+        const unitOpts = dim.inputUnits
+          .map(u => `<option value="${u.id}" ${u.id === s.unit ? "selected" : ""}>${u.label}</option>`)
+          .join("");
+
+        return `
+          <div id="pk-card-${side}" class="pk-card stack-sm" style="gap: 10px;">
+            <div class="row-between">
+              <div class="row" style="gap: 6px;">
+                <span class="badge" style="${badgeStyle} font-size: 12px; padding: 4px 10px; font-weight: 900;">${label}</span>
+                <span id="pk-${side}-winner-badge" class="badge badge-pill badge-winner hidden">🏆 較划算</span>
+              </div>
+              <select
+                id="pk-${side}-store"
+                class="select"
+                style="width: auto; max-width: 132px; padding: 6px 26px 6px 10px; font-size: 13px !important;"
+                onchange="handlePkInput('${side}', 'store', this.value)"
+              >
+                ${stores.map(st => `<option value="${escapeHtml(st)}" ${st === s.store ? "selected" : ""}>${escapeHtml(st)}</option>`).join("")}
+              </select>
+            </div>
+
+            <!-- 價格 (元) -->
+            <div>
+              <label class="field-label">價格 (元)<span class="req">*</span></label>
+              <input
+                id="pk-${side}-price"
+                type="number"
+                inputmode="decimal"
+                step="any"
+                min="0"
+                class="input input-bold"
+                value="${escapeHtml(s.price)}"
+                oninput="handlePkInput('${side}', 'price', this.value)"
+                placeholder="輸入金額"
+              />
+            </div>
+
+            <!-- 單件預設模式（2欄：動態白話標題 + 單位） -->
+            <div id="pk-${side}-single-row" class="grid-2 ${s.isMultiPack ? "hidden" : ""}">
+              <div>
+                <label class="field-label">${dim.singleQtyLabel}<span class="req">*</span></label>
+                <input
+                  id="pk-${side}-single-qty"
+                  type="number"
+                  inputmode="decimal"
+                  step="any"
+                  min="0"
+                  class="input input-bold"
+                  value="${escapeHtml(s.unitQty)}"
+                  oninput="syncPkQty('${side}', 'single', this.value)"
+                  placeholder="${dim.singleQtyPlaceholder}"
+                />
+              </div>
+              <div>
+                <label class="field-label">單位</label>
+                <select id="pk-${side}-single-unit" class="select" onchange="syncPkUnit('${side}', 'single', this.value)">
+                  ${unitOpts}
+                </select>
+              </div>
+            </div>
+
+            <!-- 多入組乘法算式列 -->
+            <div id="pk-${side}-multi-row" class="equation-box ${s.isMultiPack ? "" : "hidden"}">
+              <div class="equation-grid">
+                <div>
+                  <label class="field-label">${dim.multiCountLabel}</label>
+                  <input
+                    id="pk-${side}-multi-pack"
+                    type="number"
+                    inputmode="decimal"
+                    step="any"
+                    min="1"
+                    class="input input-bold"
+                    value="${escapeHtml(s.packCount)}"
+                    oninput="handlePkInput('${side}', 'packCount', this.value)"
+                    placeholder="如 6"
+                  />
+                </div>
+                <div class="equation-times">×</div>
+                <div>
+                  <label class="field-label">${dim.multiQtyLabel}</label>
+                  <input
+                    id="pk-${side}-multi-qty"
+                    type="number"
+                    inputmode="decimal"
+                    step="any"
+                    min="0"
+                    class="input input-bold"
+                    value="${escapeHtml(s.unitQty)}"
+                    oninput="syncPkQty('${side}', 'multi', this.value)"
+                    placeholder="如 330"
+                  />
+                </div>
+                <div>
+                  <label class="field-label">單位</label>
+                  <select id="pk-${side}-multi-unit" class="select" onchange="syncPkUnit('${side}', 'multi', this.value)">
+                    ${unitOpts}
+                  </select>
+                </div>
+              </div>
+              <div id="pk-${side}-multi-helper" class="equation-total-helper">👉 總量自動試算：--</div>
+            </div>
+
+            <!-- 獨立多入組切換開關 -->
+            <label id="pk-${side}-multi-card" class="multipack-toggle-card ${s.isMultiPack ? "checked" : ""}" style="padding: 9px 10px;">
+              <input id="pk-${side}-multi-toggle" type="checkbox" ${s.isMultiPack ? "checked" : ""} onchange="togglePkMultiPack('${side}', this.checked)" />
+              <span class="multipack-toggle-text" style="font-size: 12px;">📦 這是多入組（如 6 瓶裝、12 包/串）</span>
+            </label>
+
+            <!-- 促銷快捷鈕 -->
+            <div id="pk-${side}-promos" class="grid-3">
+              ${pkPromos.map(pr => `
+                <button
+                  type="button"
+                  data-promo="${pr.id}"
+                  class="promo-pill ${s.promoType === pr.id ? "active" : ""}"
+                  style="padding: 7px 4px; font-size: 11px; text-align: center;"
+                  onclick="setPkPromo('${side}', '${pr.id}')"
+                >${pr.label}</button>
+              `).join("")}
+            </div>
+
+            <!-- 白話即時確認區 -->
+            <div id="pk-${side}-verify" class="verify-box" style="padding: 10px 11px;">
+              <span class="text-xxs text-muted">輸入價格與${dim.singleQtyLabel}即時換算單價</span>
+            </div>
+          </div>
+        `;
+      };
+
+      main.innerHTML = `
+        <div class="stack">
+          <!-- 維度與顯示單位一鍵切換卡 -->
+          <div class="card stack-sm" style="padding: 12px;">
+            <div class="grid-3">
+              ${Object.values(DIMENSIONS).map(d => `
+                <button
+                  type="button"
+                  class="seg-btn seg-btn-dark ${uiState.pk.dimension === d.id ? "active" : ""}"
+                  onclick="setPkDimension('${d.id}')"
+                >${d.icon} ${d.label}</button>
+              `).join("")}
+            </div>
+
+            <div class="seg-grid" style="grid-template-columns: repeat(${dim.displayUnits.length}, minmax(0, 1fr));">
+              ${dim.displayUnits.map(du => `
+                <button
+                  type="button"
+                  class="seg-btn ${uiState.pk.displayUnit === du.id ? "active" : ""}"
+                  onclick="setPkDisplayUnit('${du.id}')"
+                >${du.label}</button>
+              `).join("")}
+            </div>
+          </div>
+
+          <!-- 即時勝負看板 -->
+          <div id="pk-winner-banner" class="pk-banner">
+            <div class="text-xs font-black">輸入商品 A 與商品 B 的價格與${dim.singleQtyLabel}，立即判定誰較划算！</div>
+          </div>
+
+          <!-- 商品 A / 商品 B PK 卡片 -->
+          <div class="pk-grid-responsive">
+            ${renderSideCard("a", "商品 A", "background:#e0f2fe; color:#0369a1;")}
+            ${renderSideCard("b", "商品 B", "background:#f3e8ff; color:#6d28d9;")}
+          </div>
+
+          <!-- 底部操作列 -->
+          <div class="grid-2">
+            <button type="button" class="btn btn-soft btn-full" style="background: #ffffff;" onclick="resetPkFields()">🔄 清空重算</button>
+            <button type="button" class="btn btn-primary btn-full" onclick="openPkSaveModal()">💾 轉存至比價庫</button>
+          </div>
+        </div>
+      `;
+
+      updatePkLiveUI();
+    }
+
+    function setPkDimension(dimId) {
+      uiState.pk.dimension = dimId;
+      const dim = getDimensionConfig(dimId);
+      uiState.pk.displayUnit = dim.defaultDisplayUnit;
+      uiState.pk.a.unit = dim.defaultInputUnit;
+      uiState.pk.b.unit = dim.defaultInputUnit;
+      renderPkView();
+    }
+
+    function setPkDisplayUnit(displayUnitId) {
+      uiState.pk.displayUnit = displayUnitId;
+      renderPkView();
+    }
+
+    function handlePkInput(side, field, value) {
+      uiState.pk[side][field] = value;
+      if (field === "store") uiState.pk[side].storeManuallySet = true;
+      updatePkLiveUI();
+    }
+
+    function syncPkQty(side, source, val) {
+      uiState.pk[side].unitQty = val;
+      const other = source === "single" ? "multi" : "single";
+      const otherEl = document.getElementById(`pk-${side}-${other}-qty`);
+      if (otherEl) otherEl.value = val;
+      updatePkLiveUI();
+    }
+
+    function syncPkUnit(side, source, val) {
+      uiState.pk[side].unit = val;
+      const other = source === "single" ? "multi" : "single";
+      const otherEl = document.getElementById(`pk-${side}-${other}-unit`);
+      if (otherEl) otherEl.value = val;
+      updatePkLiveUI();
+    }
+
+    function togglePkMultiPack(side, checked) {
+      uiState.pk[side].isMultiPack = checked;
+      document.getElementById(`pk-${side}-single-row`)?.classList.toggle("hidden", checked);
+      document.getElementById(`pk-${side}-multi-row`)?.classList.toggle("hidden", !checked);
+      document.getElementById(`pk-${side}-multi-card`)?.classList.toggle("checked", checked);
+      updatePkLiveUI();
+    }
+
+    function setPkPromo(side, promoId) {
+      uiState.pk[side].promoType = promoId;
+      document.querySelectorAll(`#pk-${side}-promos button`).forEach(btn => {
+        btn.classList.toggle("active", btn.getAttribute("data-promo") === promoId);
+      });
+      updatePkLiveUI();
+    }
+
+    function buildPkSideQuote(side) {
+      const s = uiState.pk[side];
+      return {
+        store: s.store,
+        price: s.price,
+        packCount: s.isMultiPack ? s.packCount : 1,
+        unitQty: s.unitQty,
+        unit: s.unit,
+        promoType: s.promoType,
+        isReferenceOnly: false
+      };
+    }
+
+    function updatePkLiveUI() {
+      const dimId = uiState.pk.dimension;
+      const dim = getDimensionConfig(dimId);
+      const dispId = uiState.pk.displayUnit;
+
+      const results = {};
+      ["a", "b"].forEach(side => {
+        const s = uiState.pk[side];
+        const qObj = buildPkSideQuote(side);
+        const m = calculateQuoteMetrics(dimId, qObj);
+        results[side] = { qObj, m };
+
+        // 更新多入組即時總量提示
+        const helperEl = document.getElementById(`pk-${side}-multi-helper`);
+        if (helperEl && s.isMultiPack) {
+          const pk = parseFloat(s.packCount);
+          const qty = parseFloat(s.unitQty);
+          const uLabel = getInputUnitConfig(dimId, s.unit).label;
+          if (isFinite(pk) && pk > 0 && isFinite(qty) && qty > 0) {
+            helperEl.textContent = `👉 總量自動試算：${formatNumberWithCommas(pk)} × ${formatNumberWithCommas(qty)} = ${formatNumberWithCommas(pk * qty)} ${uLabel}`;
+          } else {
+            helperEl.textContent = `👉 總量自動試算：請輸入${dim.multiCountLabel}與${dim.multiQtyLabel}`;
+          }
+        }
+
+        // 更新單邊白話確認盒
+        const vBox = document.getElementById(`pk-${side}-verify`);
+        if (vBox) {
+          if (m.valid) {
+            const val = getDisplayPrice(dimId, dispId, m.baseUnitPrice);
+            const suffix = getEffectiveUnitSuffix(dimId, dispId, s.unit);
+            const sentence = buildPlainConfirmationSentence(dimId, qObj, m);
+            vBox.className = "verify-box is-valid";
+            vBox.innerHTML = `
+              <div class="verify-sentence" style="font-size: 11px;">${escapeHtml(sentence)}</div>
+              <div class="verify-price-row">
+                <span class="text-xs font-bold">換算單價</span>
+                <span class="verify-price-big" style="font-size: 18px;">$${formatUnitPrice(val)} <span style="font-size: 12px; font-weight: 700;">/ ${escapeHtml(suffix)}</span></span>
+              </div>
+            `;
+          } else {
+            vBox.className = "verify-box";
+            vBox.innerHTML = `<span class="text-xxs text-muted">輸入價格與${dim.singleQtyLabel}後即時試算</span>`;
+          }
+        }
+
+        document.getElementById(`pk-card-${side}`)?.classList.remove("is-winner");
+        document.getElementById(`pk-${side}-winner-badge`)?.classList.add("hidden");
+      });
+
+      const banner = document.getElementById("pk-winner-banner");
+      if (!banner) return;
+
+      const mA = results.a.m;
+      const mB = results.b.m;
+
+      if (mA.valid && mB.valid) {
+        const valA = getDisplayPrice(dimId, dispId, mA.baseUnitPrice);
+        const valB = getDisplayPrice(dimId, dispId, mB.baseUnitPrice);
+        const sufA = getEffectiveUnitSuffix(dimId, dispId, uiState.pk.a.unit);
+        const sufB = getEffectiveUnitSuffix(dimId, dispId, uiState.pk.b.unit);
+
+        if (Math.abs(mA.baseUnitPrice - mB.baseUnitPrice) < 1e-9) {
+          banner.className = "pk-banner is-tie";
+          banner.innerHTML = `
+            <div style="font-size: 16px; font-weight: 900;">🤝 商品 A 與商品 B 單價完全相同！</div>
+            <div class="text-xs" style="margin-top: 3px; opacity: 0.92;">皆為 $${formatUnitPrice(valA)} / ${escapeHtml(sufA)}</div>
+          `;
+        } else {
+          const aWins = mA.baseUnitPrice < mB.baseUnitPrice;
+          const winSide = aWins ? "a" : "b";
+          const winLabel = aWins ? "商品 A" : "商品 B";
+          const winVal = aWins ? valA : valB;
+          const loseVal = aWins ? valB : valA;
+          const winSuf = aWins ? sufA : sufB;
+          const loseSuf = aWins ? sufB : sufA;
+          const savePct = ((Math.abs(mA.baseUnitPrice - mB.baseUnitPrice)) / Math.max(mA.baseUnitPrice, mB.baseUnitPrice)) * 100;
+
+          document.getElementById(`pk-card-${winSide}`)?.classList.add("is-winner");
+          document.getElementById(`pk-${winSide}-winner-badge`)?.classList.remove("hidden");
+
+          banner.className = "pk-banner has-winner";
+          banner.innerHTML = `
+            <div style="font-size: 17px; font-weight: 900;">🏆 ${winLabel} 較划算！便宜 ${savePct.toFixed(1)}%</div>
+            <div class="text-xs" style="margin-top: 4px; opacity: 0.95; font-weight: 700;">
+              ${winLabel} $${formatUnitPrice(winVal)}/${escapeHtml(winSuf)} vs 對手 $${formatUnitPrice(loseVal)}/${escapeHtml(loseSuf)}
+            </div>
+          `;
+        }
+      } else {
+        banner.className = "pk-banner";
+        banner.innerHTML = `<div class="text-xs font-black">輸入商品 A 與商品 B 的價格與${dim.singleQtyLabel}，立即判定誰較划算！</div>`;
+      }
+    }
+
+    function resetPkFields() {
+      const dim = getDimensionConfig(uiState.pk.dimension);
+      uiState.pk.a = { store: appState.activeStore, price: "", isMultiPack: false, packCount: "2", unitQty: "", unit: dim.defaultInputUnit, promoType: "原價", storeManuallySet: false };
+      uiState.pk.b = { store: appState.activeStore, price: "", isMultiPack: false, packCount: "2", unitQty: "", unit: dim.defaultInputUnit, promoType: "原價", storeManuallySet: false };
+      renderPkView();
+      showToast("🔄 已清空 PK 欄位", "info");
+    }
+
+    /** 貨架 PK 轉存至比價庫彈窗 */
+    function openPkSaveModal() {
+      const dimId = uiState.pk.dimension;
+      const mA = calculateQuoteMetrics(dimId, buildPkSideQuote("a"));
+      const mB = calculateQuoteMetrics(dimId, buildPkSideQuote("b"));
+
+      if (!mA.valid && !mB.valid) {
+        showToast("請至少完整輸入一筆商品的價格與規格再轉存", "warning");
+        return;
+      }
+
+      const sameDimProducts = appState.products.filter(p => p.dimension === dimId);
+      const bothValid = mA.valid && mB.valid;
+      let defaultSaveOption = bothValid ? "both" : (mA.valid ? "a" : "b");
+
+      openModal({
+        title: "💾 轉存至比價庫",
+        bodyHtml: `
+          <div class="stack">
+            <div>
+              <label class="field-label">選擇要存入的項目</label>
+              <div class="grid-3">
+                <label class="multipack-toggle-card" style="padding: 8px; justify-content: center; opacity: ${mA.valid ? 1 : 0.45};">
+                  <input type="radio" name="pk-save-which" value="a" ${defaultSaveOption === "a" ? "checked" : ""} ${mA.valid ? "" : "disabled"} style="width:16px; height:16px;" />
+                  <span class="text-xs font-bold">只存 A</span>
+                </label>
+                <label class="multipack-toggle-card" style="padding: 8px; justify-content: center; opacity: ${mB.valid ? 1 : 0.45};">
+                  <input type="radio" name="pk-save-which" value="b" ${defaultSaveOption === "b" ? "checked" : ""} ${mB.valid ? "" : "disabled"} style="width:16px; height:16px;" />
+                  <span class="text-xs font-bold">只存 B</span>
+                </label>
+                <label class="multipack-toggle-card" style="padding: 8px; justify-content: center; opacity: ${bothValid ? 1 : 0.45};">
+                  <input type="radio" name="pk-save-which" value="both" ${defaultSaveOption === "both" ? "checked" : ""} ${bothValid ? "" : "disabled"} style="width:16px; height:16px;" />
+                  <span class="text-xs font-bold">A、B 都存</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label class="field-label">存入目標</label>
+              <div class="grid-2" style="margin-bottom: 10px;">
+                <button type="button" id="pks-tab-new" class="seg-btn active" onclick="togglePkSaveTarget('new')">➕ 建立新商品</button>
+                <button type="button" id="pks-tab-existing" class="seg-btn" ${sameDimProducts.length === 0 ? "disabled style='opacity:0.45;'" : ""} onclick="togglePkSaveTarget('existing')">📦 存入既有 (${sameDimProducts.length})</button>
+              </div>
+              <input type="hidden" id="pks-target-mode" value="new" />
+
+              <div id="pks-new-fields" class="stack-sm" style="padding: 12px; border-radius: 12px; background: #f8fafc; border: 1px solid var(--border);">
+                <div>
+                  <label class="field-label">新商品名稱<span class="req">*</span></label>
+                  <input id="pks-new-name" type="text" class="input input-bold" placeholder="例如：好市多鮮乳、桂格大燕麥片" />
+                </div>
+                <div class="grid-2">
+                  <div>
+                    <label class="field-label">品牌（選填）</label>
+                    <input id="pks-new-brand" type="text" class="input" placeholder="品牌名" />
+                  </div>
+                  <div>
+                    <label class="field-label">分類</label>
+                    <select id="pks-new-cat" class="select">
+                      ${CATEGORIES.map(c => `<option value="${c}">${c}</option>`).join("")}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label class="field-label">比價群組（選填）</label>
+                  <input id="pks-new-group" type="text" class="input" placeholder="例如：#全脂鮮乳" />
+                </div>
+              </div>
+
+              <div id="pks-existing-fields" class="hidden" style="padding: 12px; border-radius: 12px; background: #f8fafc; border: 1px solid var(--border);">
+                <label class="field-label">選擇既有${getDimensionConfig(dimId).label}商品</label>
+                <select id="pks-existing-id" class="select">
+                  ${sameDimProducts.map(p => `<option value="${p.id}">${escapeHtml(p.name)}${p.brand ? ` (${escapeHtml(p.brand)})` : ""}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+          </div>
+        `,
+        footerHtml: `
+          <button type="button" class="btn btn-soft btn-sm" onclick="closeModal()">取消</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="confirmPkSaveToLibrary()">💾 確認轉存</button>
+        `
+      });
+    }
+
+    function togglePkSaveTarget(mode) {
+      document.getElementById("pks-target-mode").value = mode;
+      const isNew = mode === "new";
+      document.getElementById("pks-new-fields")?.classList.toggle("hidden", !isNew);
+      document.getElementById("pks-existing-fields")?.classList.toggle("hidden", isNew);
+      document.getElementById("pks-tab-new")?.classList.toggle("active", isNew);
+      document.getElementById("pks-tab-existing")?.classList.toggle("active", !isNew);
+    }
+
+    function confirmPkSaveToLibrary() {
+      const mode = document.getElementById("pks-target-mode")?.value || "new";
+      const saveWhich = document.querySelector('input[name="pk-save-which"]:checked')?.value || "both";
+      const dimId = uiState.pk.dimension;
+
+      let targetProd = null;
+      if (mode === "new") {
+        const name = (document.getElementById("pks-new-name")?.value || "").trim();
+        if (!name) {
+          showToast("請輸入新商品名稱", "warning");
+          document.getElementById("pks-new-name")?.focus();
+          return;
+        }
+        targetProd = {
+          id: generateId("prod"),
+          name,
+          brand: (document.getElementById("pks-new-brand")?.value || "").trim(),
+          category: document.getElementById("pks-new-cat")?.value || CATEGORIES[0],
+          groupTag: normalizeGroupTag(document.getElementById("pks-new-group")?.value || ""),
+          dimension: dimId,
+          displayUnit: uiState.pk.displayUnit,
+          quotes: []
+        };
+        appState.products.unshift(targetProd);
+      } else {
+        const prodId = document.getElementById("pks-existing-id")?.value;
+        targetProd = appState.products.find(p => p.id === prodId);
+        if (!targetProd) {
+          showToast("找不到目標商品", "error");
+          return;
+        }
+      }
+
+      const sides = saveWhich === "both" ? ["a", "b"] : [saveWhich];
+      let savedCount = 0;
+
+      sides.forEach(side => {
+        const qObj = buildPkSideQuote(side);
+        const m = calculateQuoteMetrics(dimId, qObj);
+        if (m.valid) {
+          targetProd.quotes.push({
+            id: generateId("q"),
+            store: qObj.store || appState.activeStore,
+            price: m.price,
+            packCount: m.packCount,
+            unitQty: m.unitQty,
+            unit: qObj.unit,
+            promoType: qObj.promoType || "原價",
+            checkDate: uiState.todayDate,
+            note: "由貨架即時 PK 轉存",
+            isReferenceOnly: false,
+            refUnitText: ""
+          });
+          savedCount++;
+        }
+      });
+
+      saveData();
+      closeModal();
+      uiState.activeTab = "library";
+      renderBottomNav();
+      openProductDetail(targetProd.id);
+      showToast(`✅ 已轉存 ${savedCount} 筆報價至「${targetProd.name}」`, "success");
+    }
+
+    /*************************************************************************
+     * 十三、分頁三：📊 報表與管理（Excel 3工作表、JSON 備份還原、賣場管理）
+     *************************************************************************/
+    function renderManageView() {
+      const main = document.getElementById("main-container");
+      const totalProducts = appState.products.length;
+      const totalQuotes = appState.products.reduce((s, p) => s + p.quotes.length, 0);
+      const usedStores = new Set();
+      appState.products.forEach(p => p.quotes.forEach(q => usedStores.add(q.store)));
+
+      main.innerHTML = `
+        <div class="stack">
+          <!-- 統計儀表板 -->
+          <div class="grid-3">
+            <div class="stat-card">
+              <div class="stat-val text-primary">${totalProducts}</div>
+              <div class="stat-label">商品總數</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val">${totalQuotes}</div>
+              <div class="stat-label">報價紀錄數</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val" style="color: var(--sky);">${usedStores.size}</div>
+              <div class="stat-label">已記錄賣場數</div>
+            </div>
+          </div>
+
+          <!-- 1. Excel 三工作表報表匯出 -->
+          <div class="card stack-sm">
+            <div style="font-size: 15px; font-weight: 900;">📥 匯出 Excel 報表（.xlsx 三工作表）</div>
+            <p class="text-xs text-muted" style="margin: 0; line-height: 1.55;">
+              一鍵產出包含「1_各商品最低價總覽表」、「2_完整賣場報價明細表」與「3_各賣場最划算採購清單」三個工作表的標準 Excel 檔。
+            </p>
+            <button type="button" class="btn btn-primary btn-full" onclick="exportExcelReport()">📊 匯出 Excel 報表 (.xlsx)</button>
+          </div>
+
+          <!-- 2. JSON 備份與還原 -->
+          <div class="card stack-sm">
+            <div style="font-size: 15px; font-weight: 900;">💾 JSON 備份與還原</div>
+            <p class="text-xs text-muted" style="margin: 0; line-height: 1.5;">
+              建議定期匯出 JSON 存於手機檔案夾，換手機或升級改版時可一鍵覆蓋或合併還原，雙重保障資料安全。
+            </p>
+            <div class="grid-2">
+              <button type="button" class="btn btn-dark btn-sm" style="padding: 11px;" onclick="exportJsonBackup()">💾 匯出 JSON 備份</button>
+              <button type="button" class="btn btn-emerald-soft btn-sm" style="padding: 11px;" onclick="document.getElementById('json-import-file').click()">📂 匯入 JSON 還原</button>
+            </div>
+          </div>
+
+          <!-- 3. 賣場清單管理 -->
+          <div class="card stack-sm">
+            <div class="row-between">
+              <div style="font-size: 15px; font-weight: 900;">🏪 賣場清單管理</div>
+              <button type="button" class="btn btn-emerald-soft btn-xs" onclick="openAddStoreModal()">＋ 新增賣場</button>
+            </div>
+
+            <div>
+              <div class="text-xxs font-bold text-muted" style="margin-bottom: 6px;">預設 9 大賣場</div>
+              <div class="row-wrap">
+                ${DEFAULT_STORES.map(s => `<span class="badge badge-pill badge-slate" style="padding: 4px 10px;">${escapeHtml(s)}</span>`).join("")}
+              </div>
+            </div>
+
+            <div style="padding-top: 8px; border-top: 1px solid var(--border);">
+              <div class="text-xxs font-bold text-muted" style="margin-bottom: 6px;">自訂賣場（${appState.customStores.length}）</div>
+              ${appState.customStores.length > 0 ? `
+                <div class="row-wrap">
+                  ${appState.customStores.map(s => `
+                    <span class="badge badge-pill badge-emerald" style="padding: 4px 6px 4px 11px; gap: 6px;">
+                      <span>${escapeHtml(s)}</span>
+                      <button type="button" onclick="confirmDeleteCustomStore('${escapeHtml(s).replace(/'/g, "\\'")}')" style="width:18px; height:18px; border-radius:999px; background:#fff; color:var(--rose); font-size:10px; font-weight:900; display:inline-flex; align-items:center; justify-content:center;">✕</button>
+                    </span>
+                  `).join("")}
+                </div>
+              ` : `<div class="text-xs text-muted">尚未新增任何自訂賣場</div>`}
+            </div>
+          </div>
+
+          <!-- 4. 範例資料與系統重置 -->
+          <div class="card stack-sm">
+            <div style="font-size: 15px; font-weight: 900;">⚙️ 範例資料與重置</div>
+            <div class="grid-2">
+              <button type="button" class="btn btn-amber-soft btn-sm" style="padding: 11px;" onclick="confirmResetSampleData()">🧪 還原內建範例</button>
+              <button type="button" class="btn btn-rose-soft btn-sm" style="padding: 11px;" onclick="confirmClearAllData()">🗑️ 清空全部資料</button>
+            </div>
+            <div class="text-xxs text-muted" style="padding-top: 4px;">
+              版本：行動賣場商品比價系統 ${APP_VERSION}（純觸控極速版）｜本地鍵值：${STORAGE_KEY}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function confirmDeleteCustomStore(storeName) {
+      openConfirmModal({
+        title: "🗑️ 移除自訂賣場",
+        message: `確定要從快速切換列移除「${storeName}」嗎？\n（已記錄在商品中的歷史報價仍會完整保留）`,
+        confirmText: "確定移除",
+        onConfirm: () => {
+          appState.customStores = appState.customStores.filter(s => s !== storeName);
+          if (appState.activeStore === storeName) appState.activeStore = DEFAULT_STORES[0];
+          saveData();
+          renderStoreBar();
+          renderManageView();
+          showToast(`🗑️ 已移除自訂賣場「${storeName}」`, "info");
+        }
+      });
+    }
+
+    function confirmResetSampleData() {
+      openConfirmModal({
+        title: "🧪 還原為內建示範資料",
+        message: "此操作將覆蓋目前所有商品與報價，還原為系統內建的 4 筆示範資料（馬鈴薯、義美／瑞穗鮮乳、舒潔衛生紙）。\n\n建議先匯出 JSON 備份，確定要還原嗎？",
+        confirmText: "確定還原範例",
+        confirmBtnClass: "btn-amber",
+        onConfirm: () => {
+          appState.products = createDemoProducts();
+          uiState.selectedProductId = null;
+          saveData();
+          renderManageView();
+          showToast("🧪 已還原 4 筆內建示範資料", "success");
+        }
+      });
+    }
+
+    function confirmClearAllData() {
+      openConfirmModal({
+        title: "🗑️ 清空全部資料",
+        message: "這將刪除目前全部商品與報價，讓您從空白比價庫正式開始累積資料。\n\n重新整理網頁後不會再載入示範資料。確定要清空嗎？",
+        confirmText: "確定清空",
+        onConfirm: () => {
+          appState.products = [];
+          uiState.selectedProductId = null;
+          saveData();
+          renderManageView();
+          showToast("🗑️ 已清空全部商品資料", "info");
+        }
+      });
+    }
+
+    /*************************************************************************
+     * 十四、Excel 三工作表匯出與 JSON 備份／還原引擎
+     *************************************************************************/
+    function exportExcelReport() {
+      if (typeof XLSX === "undefined") {
+        showToast("⚠️ 離線狀態無法載入 Excel 元件，請先使用「匯出 JSON 備份」", "warning");
+        return;
+      }
+      if (appState.products.length === 0) {
+        showToast("目前沒有商品資料可匯出", "warning");
+        return;
+      }
+
+      try {
+        const sheet1 = [];
+        const sheet2 = [];
+        const sheet3 = [];
+
+        appState.products.forEach(p => {
+          const dim = getDimensionConfig(p.dimension);
+          const stats = analyzeProductQuotes(p);
+          const best = stats.bestQuote;
+          const second = stats.secondQuote;
+
+          const bestPrice = best ? getDisplayPrice(p.dimension, p.displayUnit, best.baseUnitPrice) : null;
+          const secondPrice = second ? getDisplayPrice(p.dimension, p.displayUnit, second.baseUnitPrice) : null;
+          const bestUnitText = best
+            ? `元/${getEffectiveUnitSuffix(p.dimension, p.displayUnit, best.unit)}`
+            : getDisplayUnitConfig(p.dimension, p.displayUnit).label;
+
+          const savePct = (best && second && second.baseUnitPrice > 0)
+            ? `${(((second.baseUnitPrice - best.baseUnitPrice) / second.baseUnitPrice) * 100).toFixed(1)}%`
+            : "-";
+
+          sheet1.push({
+            "商品名稱": p.name,
+            "品牌": p.brand || "",
+            "分類": p.category,
+            "比價群組": p.groupTag || "",
+            "計價方式": dim.label,
+            "顯示基準單位": bestUnitText,
+            "歷史最便宜賣場": best ? best.store : "尚無換算報價",
+            "最低基準單價": bestPrice !== null ? Number(formatUnitPrice(bestPrice)) : "",
+            "最低價原始規格": best ? formatHumanSpec(p.dimension, best) : "",
+            "促銷類型": best ? best.promoType : "",
+            "查價日期": best ? best.checkDate : "",
+            "次便宜賣場": second ? second.store : "-",
+            "次便宜基準單價": secondPrice !== null ? Number(formatUnitPrice(secondPrice)) : "",
+            "最便宜省下": savePct,
+            "總報價筆數": stats.totalCount
+          });
+
+          [...stats.ranked, ...stats.references].forEach(q => {
+            const dispVal = q.baseUnitPrice ? getDisplayPrice(p.dimension, p.displayUnit, q.baseUnitPrice) : null;
+            const fresh = getFreshnessInfo(q.checkDate);
+            const uLabel = q.isReferenceOnly ? (q.refUnitText || "份") : getInputUnitConfig(p.dimension, q.unit).label;
+            const qUnitText = q.isReferenceOnly ? "-" : `元/${getEffectiveUnitSuffix(p.dimension, p.displayUnit, q.unit)}`;
+
+            sheet2.push({
+              "商品名稱": p.name,
+              "品牌": p.brand || "",
+              "分類": p.category,
+              "比價群組": p.groupTag || "",
+              "賣場名稱": q.store,
+              "價格類型": q.promoType,
+              "價格(元)": q.price,
+              "組數/入數": q.packCount || 1,
+              "單件數量/重量/容量": q.unitQty,
+              "單位": uLabel,
+              "參考報價": q.isReferenceOnly ? "是" : "否",
+              "換算基準單價": dispVal !== null ? Number(formatUnitPrice(dispVal)) : "",
+              "基準單位": qUnitText,
+              "名次": q.priceRank ? `#${q.priceRank}` : "參考",
+              "查價日期": q.checkDate,
+              "距今天數": fresh.days,
+              "新鮮度": fresh.statusText,
+              "備註": q.note || ""
+            });
+          });
+
+          if (best) {
+            sheet3.push({
+              "最划算賣場": best.store,
+              "商品名稱": p.name,
+              "品牌": p.brand || "",
+              "分類": p.category,
+              "最低基準單價": Number(formatUnitPrice(bestPrice)),
+              "基準單位": bestUnitText,
+              "原始價格與規格": formatHumanSpec(p.dimension, best),
+              "價格類型": best.promoType,
+              "比次便宜省下": savePct,
+              "查價日期": best.checkDate,
+              "備註": best.note || ""
+            });
+          }
+        });
+
+        sheet3.sort((a, b) => a["最划算賣場"].localeCompare(b["最划算賣場"], "zh-Hant"));
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet1), "1_各商品最低價總覽表");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet2.length ? sheet2 : [{ "說明": "尚無報價明細" }]), "2_完整賣場報價明細表");
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheet3.length ? sheet3 : [{ "說明": "尚無採購清單" }]), "3_各賣場最划算採購清單");
+
+        const fileName = `行動比價報表_${uiState.todayDate}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+        showToast(`✅ 已匯出 Excel：${fileName}`, "success");
+      } catch (err) {
+        console.error("Excel 匯出錯誤:", err);
+        showToast("⚠️ 匯出 Excel 失敗，請改試 JSON 備份", "error");
+      }
+    }
+
+    function exportJsonBackup() {
+      try {
+        const exportObj = {
+          ...appState,
+          exportedAt: new Date().toISOString(),
+          storageKey: STORAGE_KEY
+        };
+        const blob = new Blob([JSON.stringify(exportObj, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const fileName = `smart_price_backup_${uiState.todayDate}.json`;
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast(`💾 已匯出備份：${fileName}`, "success");
+      } catch (err) {
+        console.error("JSON 匯出錯誤:", err);
+        showToast("⚠️ 匯出 JSON 失敗", "error");
+      }
+    }
+
+    function handleJsonFileSelect(event) {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (!data || !Array.isArray(data.products)) {
+            showToast("⚠️ 無效的 JSON 備份格式", "error");
+            return;
+          }
+          pendingJsonImportData = data;
+          const totalQ = data.products.reduce((s, p) => s + (Array.isArray(p.quotes) ? p.quotes.length : 0), 0);
+
+          openModal({
+            title: "📂 選擇 JSON 還原模式",
+            bodyHtml: `
+              <div class="stack-sm">
+                <div class="card" style="background: #f8fafc; padding: 12px;">
+                  <div class="text-xs font-black">備份檔案內容摘要：</div>
+                  <div class="text-xs" style="margin-top: 5px;">📦 商品數量：<strong>${data.products.length}</strong> 項</div>
+                  <div class="text-xs" style="margin-top: 2px;">📋 報價紀錄：<strong>${totalQ}</strong> 筆</div>
+                </div>
+                <p class="text-xs text-muted" style="margin: 0;">請選擇要「合併匯入」現有資料庫，或是「覆蓋還原」整份備份：</p>
+              </div>
+            `,
+            footerHtml: `
+              <button type="button" class="btn btn-soft btn-sm" onclick="closeModal()">取消</button>
+              <button type="button" class="btn btn-primary btn-sm" onclick="applyJsonImport('merge')">🔀 合併匯入</button>
+              <button type="button" class="btn btn-danger btn-sm" onclick="applyJsonImport('overwrite')">♻️ 覆蓋還原</button>
+            `
+          });
+        } catch (err) {
+          showToast("⚠️ 無法解析 JSON 檔案", "error");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function applyJsonImport(mode) {
+      if (!pendingJsonImportData) return;
+      const incoming = pendingJsonImportData;
+      pendingJsonImportData = null;
+
+      const incomingStores = Array.isArray(incoming.customStores) ? incoming.customStores : [];
+      incoming.products.forEach(migrateProductSchema);
+
+      if (mode === "overwrite") {
+        appState.customStores = incomingStores.filter(s => !DEFAULT_STORES.includes(s));
+        appState.products = incoming.products;
+        if (incoming.activeStore && getAllStores().includes(incoming.activeStore)) {
+          appState.activeStore = incoming.activeStore;
+        }
+        saveData();
+        closeModal();
+        renderStoreBar();
+        renderManageView();
+        showToast(`♻️ 已覆蓋還原 ${appState.products.length} 項商品`, "success");
+      } else {
+        incomingStores.forEach(s => {
+          if (!DEFAULT_STORES.includes(s) && !appState.customStores.includes(s)) {
+            appState.customStores.push(s);
+          }
+        });
+
+        let addedProducts = 0;
+        let addedQuotes = 0;
+
+        incoming.products.forEach(impProd => {
+          const existing = appState.products.find(
+            p => p.id === impProd.id || (p.name === impProd.name && p.dimension === impProd.dimension)
+          );
+          if (!existing) {
+            appState.products.push(impProd);
+            addedProducts++;
+            addedQuotes += (impProd.quotes || []).length;
+          } else {
+            (impProd.quotes || []).forEach(iq => {
+              const dup = existing.quotes.some(
+                eq => eq.id === iq.id || (eq.store === iq.store && eq.price === iq.price && eq.packCount === iq.packCount && eq.unitQty === iq.unitQty && eq.unit === iq.unit && eq.checkDate === iq.checkDate)
+              );
+              if (!dup) {
+                existing.quotes.push(iq);
+                addedQuotes++;
+              }
+            });
+          }
+        });
+
+        saveData();
+        closeModal();
+        renderStoreBar();
+        renderManageView();
+        showToast(`🔀 合併完成：新增 ${addedProducts} 項商品、${addedQuotes} 筆報價`, "success");
+      }
+    }
+
+    /*************************************************************************
+     * 十五、系統初始化與跨日背景喚醒事件監聽
+     *************************************************************************/
+    function initApp() {
+      const badge = document.getElementById("app-version-badge");
+      if (badge) badge.textContent = APP_VERSION;
+
+      checkAndAutoSyncRealDate(false);
+      loadData();
+
+      uiState.pk.a.store = appState.activeStore;
+      uiState.pk.b.store = appState.activeStore;
+
+      renderStoreBar();
+      renderBottomNav();
+      renderMainContent();
+
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") checkAndAutoSyncRealDate(true);
+      });
+      window.addEventListener("pageshow", () => checkAndAutoSyncRealDate(true));
+      window.addEventListener("focus", () => checkAndAutoSyncRealDate(true));
+    }
+
+    window.addEventListener("DOMContentLoaded", initApp);
+  </script>
+</body>
+</html>
