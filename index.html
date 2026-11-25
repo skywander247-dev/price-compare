@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="比價系統" />
   <meta name="theme-color" content="#0f766e" />
-  <title>行動賣場商品比價系統 v1.2</title>
+  <title>行動賣場商品比價系統 v1.3</title>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.full.min.js" defer></script>
   <style>
     :root {
@@ -746,7 +746,7 @@
       border-radius: 7px;
     }
 
-    /* v1.2 兩層式價格類型與促銷區 */
+    /* 兩層式價格類型與促銷區 */
     .price-mode-switch {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -886,6 +886,7 @@
     .mmdd-row {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 8px;
       margin-top: 8px;
       padding-top: 8px;
@@ -900,7 +901,7 @@
     }
 
     .mmdd-row input {
-      max-width: 120px;
+      max-width: 112px;
       padding: 7px 10px;
       text-align: center;
       letter-spacing: 2px;
@@ -1107,7 +1108,7 @@
     <div class="topbar-row">
       <div class="brand-title">
         <span>🛒 行動比價系統</span>
-        <span class="version-badge" id="appVersionBadge">v1.2</span>
+        <span class="version-badge" id="appVersionBadge">v1.3</span>
       </div>
       <div class="topbar-actions">
         <span class="date-pill" id="todayDateDisplay">--</span>
@@ -1328,11 +1329,11 @@
           <div class="form-hint hidden" id="rmRegularPriceHint"></div>
         </div>
 
-        <!-- v1.2 展開：特價與有效時間設定區 -->
+        <!-- v1.3 展開：特價與有效時間設定區 -->
         <div id="rmPromoPanel" class="promo-panel hidden">
           <div class="form-label" style="color:#9a3412; margin-bottom:6px;">選擇特價 / 促銷類型</div>
           <div class="promo-type-grid" id="rmPromoTypeGrid">
-            <button type="button" class="promo-type-btn active" data-ptype="direct">會員價 /<br>直降 / 出清</button>
+            <button type="button" class="promo-type-btn active" data-ptype="direct">會員價 /<br>限時特價</button>
             <button type="button" class="promo-type-btn" data-ptype="buyXgetY">買 X 送 Y<br><span style="font-weight:500;">(如買2送3)</span></button>
             <button type="button" class="promo-type-btn" data-ptype="secondItem">第 2 件折<br>/ 加價購</button>
             <button type="button" class="promo-type-btn" data-ptype="bundleNM">任選 N 件<br>共 M 元</button>
@@ -1441,8 +1442,9 @@
     /********************************************************************
      * 核心系統常數與向下相容設定（嚴格鎖定 STORAGE_KEY）
      ********************************************************************/
-    const APP_VERSION = "v1.2";
+    const APP_VERSION = "v1.3";
     const STORAGE_KEY = "smart_price_compare_v1_official";
+    const DIRECT_PROMO_LABEL = "會員價/限時特價";
     const DEFAULT_STORES = [
       "全聯", "家樂福", "好市多", "大潤發", "寶雅", "屈臣氏", "傳統市場", "蝦皮", "momo"
     ];
@@ -1616,11 +1618,11 @@
     let detailShowExpired = false;
     let detailShowCrossBrand = false;
 
-    // 報價表單狀態（v1.2 促銷引擎）
+    // 報價表單狀態（v1.3 促銷引擎）
     let rmState = {
       priceMode: "regular",
       promoType: "direct",
-      subLabel: "會員價",
+      subLabel: DIRECT_PROMO_LABEL,
       specialPrice: "",
       buyX: 2,
       getY: 1,
@@ -1653,7 +1655,7 @@
         unitQty: "",
         unit: cfg.defaultInput,
         promoType: "direct",
-        subLabel: "會員價",
+        subLabel: DIRECT_PROMO_LABEL,
         specialPrice: "",
         buyX: 2,
         getY: 3,
@@ -1668,7 +1670,7 @@
     }
 
     /********************************************************************
-     * 資料載入、儲存與 v1.0/v1.1 向下相容遷移
+     * 資料載入、儲存與 v1.0 / v1.1 / v1.2 向下相容遷移
      ********************************************************************/
     function migrateRecord(rec, dim) {
       const cfg = DIMENSION_CONFIG[dim] || DIMENSION_CONFIG.weight;
@@ -1691,7 +1693,7 @@
       const unitQty = parseFloat(rec.unitQty != null ? rec.unitQty : (rec.specQty != null ? rec.specQty : (rec.qty != null ? rec.qty : 1))) || 1;
       const date = rec.date || getTodayDateString();
 
-      // 若已是 v1.2 格式直接補齊預設欄位
+      // 若已是 v1.2 / v1.3 格式，統一將 direct 標籤歸併為「會員價/限時特價」
       if (rec.priceMode === "regular" || rec.priceMode === "promo") {
         return {
           id: rec.id || uid("rec"),
@@ -1707,7 +1709,7 @@
           regularPrice: rec.regularPrice != null && rec.regularPrice !== "" ? parseFloat(rec.regularPrice) : null,
           promo: rec.priceMode === "promo" ? {
             type: rec.promo?.type || "direct",
-            subLabel: rec.promo?.subLabel || "會員價",
+            subLabel: DIRECT_PROMO_LABEL,
             specialPrice: rec.promo?.specialPrice != null && rec.promo?.specialPrice !== "" ? parseFloat(rec.promo.specialPrice) : null,
             buyX: parseFloat(rec.promo?.buyX) || 1,
             getY: parseFloat(rec.promo?.getY) || 1,
@@ -1742,7 +1744,7 @@
         regularPrice = null;
         promo = {
           type: "direct",
-          subLabel: oldType.includes("會員") ? "會員價" : (oldType.includes("出清") ? "出清" : "限時特價"),
+          subLabel: DIRECT_PROMO_LABEL,
           specialPrice: oldPrice,
           startDate: date,
           endDate: ""
@@ -1805,7 +1807,7 @@
               regularPrice: 75,
               promo: {
                 type: "direct",
-                subLabel: "會員價",
+                subLabel: DIRECT_PROMO_LABEL,
                 specialPrice: 54,
                 startDate: today,
                 endDate: addDays(today, 6)
@@ -1825,7 +1827,7 @@
               regularPrice: 68,
               promo: {
                 type: "direct",
-                subLabel: "限時特價",
+                subLabel: DIRECT_PROMO_LABEL,
                 specialPrice: 48,
                 startDate: addDays(today, -10),
                 endDate: addDays(today, -3)
@@ -2027,8 +2029,8 @@
 
       if (type === "direct") {
         const sp = parseFloat(p.specialPrice);
-        if (isNaN(sp) || sp < 0) return { valid: false, error: `請輸入「${p.subLabel || "特價"}」金額` };
-        let promoLabel = `${p.subLabel || "會員價"} $${formatMoney(sp)}`;
+        if (isNaN(sp) || sp < 0) return { valid: false, error: `請輸入「${DIRECT_PROMO_LABEL}」金額` };
+        let promoLabel = `${DIRECT_PROMO_LABEL} $${formatMoney(sp)}`;
         let diffText = "";
         if (hasRegular && rp > sp) {
           const saved = rp - sp;
@@ -2970,7 +2972,7 @@
     });
 
     /********************************************************************
-     * Modal：賣場報價表單（v1.1 動態白話排版 ＋ v1.2 彈性促銷與效期）
+     * Modal：賣場報價表單（v1.1 動態白話排版 ＋ v1.3 精簡彈性促銷與效期）
      ********************************************************************/
     function openRecordModal(productId, recordId = null, isRenewPromo = false) {
       const product = appState.products.find(p => p.id === productId);
@@ -3021,7 +3023,7 @@
         rmState.priceMode = existing.priceMode || "regular";
         if (existing.promo) {
           rmState.promoType = existing.promo.type || "direct";
-          rmState.subLabel = existing.promo.subLabel || "會員價";
+          rmState.subLabel = DIRECT_PROMO_LABEL;
           rmState.specialPrice = existing.promo.specialPrice != null ? existing.promo.specialPrice : "";
           rmState.buyX = existing.promo.buyX || 2;
           rmState.getY = existing.promo.getY || 1;
@@ -3067,7 +3069,7 @@
       rmState = {
         priceMode: "regular",
         promoType: "direct",
-        subLabel: "會員價",
+        subLabel: DIRECT_PROMO_LABEL,
         specialPrice: "",
         buyX: 2,
         getY: 3,
@@ -3126,21 +3128,9 @@
 
       if (t === "direct") {
         box.innerHTML = `
-          <div class="quick-chips">
-            ${["會員價", "限時特價", "出清"].map(lbl => `
-              <button type="button" class="q-chip ${rmState.subLabel === lbl ? "active" : ""}" data-sublbl="${lbl}">${lbl}</button>
-            `).join("")}
-          </div>
-          <label class="form-label">${escapeHtml(rmState.subLabel)}金額 (元) *</label>
-          <input type="number" inputmode="decimal" step="any" min="0" id="rmDynSpecialPrice" value="${escapeHtml(rmState.specialPrice)}" placeholder="請輸入實際${escapeHtml(rmState.subLabel)}金額，例如 89" />
+          <label class="form-label">會員價 / 限時特價金額 (元) *</label>
+          <input type="number" inputmode="decimal" step="any" min="0" id="rmDynSpecialPrice" value="${escapeHtml(rmState.specialPrice)}" placeholder="請輸入實際特價金額，例如 89" />
         `;
-        box.querySelectorAll("[data-sublbl]").forEach(btn => {
-          btn.addEventListener("click", () => {
-            rmState.subLabel = btn.dataset.sublbl;
-            renderRmPromoSubBox();
-            updateRecordLivePreview();
-          });
-        });
         document.getElementById("rmDynSpecialPrice").addEventListener("input", e => {
           rmState.specialPrice = e.target.value;
           updateRecordLivePreview();
@@ -3320,7 +3310,6 @@
     }
 
     function buildDraftRecordFromModal() {
-      const dim = document.getElementById("rmDimension").value;
       const isMp = document.getElementById("rmIsMultiPack").checked;
       const unit = isMp ? document.getElementById("rmMpUnit").value : document.getElementById("rmUnit").value;
       const unitQty = parseFloat(isMp ? document.getElementById("rmPerPackQty").value : document.getElementById("rmSingleQty").value);
@@ -3343,7 +3332,7 @@
         regularPrice,
         promo: rmState.priceMode === "promo" ? {
           type: rmState.promoType,
-          subLabel: rmState.subLabel,
+          subLabel: DIRECT_PROMO_LABEL,
           specialPrice: rmState.specialPrice !== "" ? parseFloat(rmState.specialPrice) : null,
           buyX: parseFloat(rmState.buyX),
           getY: parseFloat(rmState.getY),
@@ -3603,7 +3592,7 @@
     });
 
     /********************************************************************
-     * 貨架即時 PK 計算機（同步導入 v1.1 白話表單 ＋ v1.2 6大促銷）
+     * 貨架即時 PK 計算機（同步導入 v1.1 白話表單 ＋ v1.3 精簡 6 大促銷）
      ********************************************************************/
     function renderPKTab() {
       const dim = pkState.dimension;
@@ -3658,7 +3647,7 @@
       } else {
         const promo = {
           type: item.promoType,
-          subLabel: item.subLabel,
+          subLabel: DIRECT_PROMO_LABEL,
           specialPrice: item.specialPrice,
           buyX: item.buyX,
           getY: item.getY,
@@ -3700,7 +3689,7 @@
         if (item.promoType === "direct") {
           promoSubHtml = `
             <div class="inline-formula">
-              <span>特價</span>
+              <span>會員/特價</span>
               <input type="number" inputmode="decimal" step="any" data-pk-field="specialPrice" value="${escapeHtml(item.specialPrice)}" placeholder="實付特價" />
               <span>元</span>
             </div>`;
@@ -3767,7 +3756,7 @@
           <div class="promo-panel" style="padding:9px; margin-bottom:10px;">
             <div class="promo-type-grid" style="margin-bottom:8px;">
               ${[
-                ["direct", "直降特價"],
+                ["direct", "會員價/<br>限時特價"],
                 ["buyXgetY", "買X送Y"],
                 ["secondItem", "第2件折"],
                 ["bundleNM", "N件M元"],
@@ -3950,7 +3939,7 @@
         regularPrice: item.regularPrice !== "" ? parseFloat(item.regularPrice) : null,
         promo: item.priceMode === "promo" ? {
           type: item.promoType,
-          subLabel: item.subLabel,
+          subLabel: DIRECT_PROMO_LABEL,
           specialPrice: item.specialPrice !== "" ? parseFloat(item.specialPrice) : null,
           buyX: parseFloat(item.buyX),
           getY: parseFloat(item.getY),
