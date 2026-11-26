@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="比價系統" />
   <meta name="theme-color" content="#0f766e" />
-  <title>行動賣場商品比價系統 v1.4</title>
+  <title>行動賣場商品比價系統 v1.5</title>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/xlsx.full.min.js" defer></script>
   <style>
     :root {
@@ -707,15 +707,19 @@
       margin-top: 4px;
     }
 
-    .locked-orig-note {
-      margin-top: 8px;
-      padding: 7px 9px;
+    .missing-base-alert {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      margin-bottom: 9px;
       border-radius: 8px;
-      background: #f8fafc;
-      border: 1px dashed var(--border);
+      background: var(--warn-soft);
+      border: 1px solid #fde68a;
       font-size: 12px;
       font-weight: 700;
-      color: var(--text-sub);
+      color: #92400e;
     }
 
     .checkbox-row {
@@ -1129,7 +1133,7 @@
     <div class="topbar-row">
       <div class="brand-title">
         <span>🛒 行動比價系統</span>
-        <span class="version-badge" id="appVersionBadge">v1.4</span>
+        <span class="version-badge" id="appVersionBadge">v1.5</span>
       </div>
       <div class="topbar-actions">
         <span class="date-pill" id="todayDateDisplay">--</span>
@@ -1344,13 +1348,13 @@
           </div>
         </div>
 
-        <!-- v1.4：僅在「原價」模式顯示；點選「特價 / 促銷」時直接隱藏 -->
+        <!-- 僅在「原價」模式顯示；點選「特價 / 促銷」時完全隱藏 -->
         <div class="form-group" id="rmRegularPriceGroup">
           <label class="form-label" id="rmRegularPriceLabel">價格 (元) *</label>
           <input type="number" inputmode="decimal" step="any" min="0" id="rmRegularPrice" placeholder="輸入金額，例如 100" />
         </div>
 
-        <!-- v1.4 展開：特價與有效時間設定區 -->
+        <!-- v1.5 展開：特價與有效時間設定區（所有促銷子類型均不顯示原價／單件標示價修改欄） -->
         <div id="rmPromoPanel" class="promo-panel hidden">
           <div class="form-label" style="color:#9a3412; margin-bottom:6px;">選擇特價 / 促銷類型</div>
           <div class="promo-type-grid" id="rmPromoTypeGrid">
@@ -1463,7 +1467,7 @@
     /********************************************************************
      * 核心系統常數與向下相容設定（嚴格鎖定 STORAGE_KEY）
      ********************************************************************/
-    const APP_VERSION = "v1.4";
+    const APP_VERSION = "v1.5";
     const STORAGE_KEY = "smart_price_compare_v1_official";
     const DIRECT_PROMO_LABEL = "會員價/限時特價";
     const DEFAULT_STORES = [
@@ -1605,8 +1609,8 @@
     function normalizeDiscountMultiplier(val) {
       const n = parseFloat(val);
       if (isNaN(n) || n <= 0) return null;
-      if (n <= 10) return n / 10;       // 如 8.5 折 -> 0.85, 5 折 -> 0.5
-      if (n < 100) return n / 100;      // 如 85 折 -> 0.85, 65 折 -> 0.65
+      if (n <= 10) return n / 10;
+      if (n < 100) return n / 100;
       return null;
     }
 
@@ -1639,7 +1643,7 @@
     let detailShowExpired = false;
     let detailShowCrossBrand = false;
 
-    // 報價表單狀態（v1.4）
+    // 報價表單狀態（v1.5）
     let rmState = {
       priceMode: "regular",
       regularPrice: "",
@@ -1692,7 +1696,7 @@
     }
 
     /********************************************************************
-     * 資料載入、儲存與 v1.0 / v1.1 / v1.2 / v1.3 向下相容遷移
+     * 資料載入、儲存與 v1.0 ～ v1.4 向下相容遷移
      ********************************************************************/
     function migrateRecord(rec, dim) {
       const cfg = DIMENSION_CONFIG[dim] || DIMENSION_CONFIG.weight;
@@ -2071,7 +2075,7 @@
       if (type === "buyXgetY") {
         const x = parseFloat(p.buyX);
         const y = parseFloat(p.getY);
-        if (!hasRegular) return { valid: false, error: "請輸入單件標示價 (元)" };
+        if (!hasRegular) return { valid: false, error: "尚無原價可供換算，請先切回「原價」輸入金額" };
         if (isNaN(x) || x <= 0 || isNaN(y) || y <= 0) return { valid: false, error: "請輸入正確的「買 X 送 Y」數量" };
         const totalSets = x + y;
         const payTotal = rp * x;
@@ -2087,7 +2091,7 @@
       }
 
       if (type === "secondItem") {
-        if (!hasRegular) return { valid: false, error: "請輸入單件標示價 (元)" };
+        if (!hasRegular) return { valid: false, error: "尚無原價可供換算，請先切回「原價」輸入金額" };
         if (p.secondMode === "addPrice") {
           const addP = parseFloat(p.secondAddPrice);
           if (isNaN(addP) || addP < 0) return { valid: false, error: "請輸入第 2 件加購金額" };
@@ -2131,7 +2135,7 @@
       }
 
       if (type === "percentOff") {
-        if (!hasRegular) return { valid: false, error: "請輸入單件標示價 (元)" };
+        if (!hasRegular) return { valid: false, error: "尚無原價可供換算，請先切回「原價」輸入金額" };
         const mult = normalizeDiscountMultiplier(p.discountRate);
         if (!mult) return { valid: false, error: "請輸入正確折數（如 85 或 8.5 代表 85 折）" };
         const payTotal = rp * mult;
@@ -2142,12 +2146,12 @@
           payTotal,
           effectiveQty: baseSingleQty,
           pricePerBaseUnit: payTotal / baseSingleQty,
-          sentence: `標示價 $${formatMoney(rp)} 打 ${foldTxt} ＝ 實付 $${formatMoney(payTotal)} 買 ${packDesc}`
+          sentence: `原價 $${formatMoney(rp)} 打 ${foldTxt} ＝ 實付 $${formatMoney(payTotal)} 買 ${packDesc}`
         };
       }
 
       if (type === "cashOff") {
-        if (!hasRegular) return { valid: false, error: "請輸入單件標示價 (元)" };
+        if (!hasRegular) return { valid: false, error: "尚無原價可供換算，請先切回「原價」輸入金額" };
         const off = parseFloat(p.cashOffAmount);
         if (isNaN(off) || off <= 0) return { valid: false, error: "請輸入現折金額" };
         const payTotal = Math.max(0, rp - off);
@@ -2157,7 +2161,7 @@
           payTotal,
           effectiveQty: baseSingleQty,
           pricePerBaseUnit: payTotal / baseSingleQty,
-          sentence: `標示價 $${formatMoney(rp)} 現折 $${formatMoney(off)} ＝ 實付 $${formatMoney(payTotal)} 買 ${packDesc}`
+          sentence: `原價 $${formatMoney(rp)} 現折 $${formatMoney(off)} ＝ 實付 $${formatMoney(payTotal)} 買 ${packDesc}`
         };
       }
 
@@ -2365,7 +2369,7 @@
     }
 
     /********************************************************************
-     * 渲染：頂部賣場列 & 商品清單（v1.4 卡片直接支援刪除按鈕）
+     * 渲染：頂部賣場列 & 商品清單
      ********************************************************************/
     function renderTopDate() {
       document.getElementById("todayDateDisplay").textContent = `📅 ${currentToday}`;
@@ -2522,7 +2526,6 @@
         el.addEventListener("click", () => openProductDetail(el.dataset.pid));
       });
 
-      // v1.4：清單頁卡片直接刪除整個商品與其所有價格資訊
       container.querySelectorAll("[data-del-prod]").forEach(btn => {
         btn.addEventListener("click", e => {
           e.stopPropagation();
@@ -2997,7 +3000,7 @@
     });
 
     /********************************************************************
-     * Modal：賣場報價表單（v1.4：特價模式直接隱藏頂部原價欄位）
+     * Modal：賣場報價表單（v1.5：特價模式完全隱藏原價／單件標示價欄位且移除鎖定提示文字）
      ********************************************************************/
     function openRecordModal(productId, recordId = null, isRenewPromo = false) {
       const product = appState.products.find(p => p.id === productId);
@@ -3114,7 +3117,6 @@
       btnReg.className = `mode-btn ${!isPromo ? "active-regular" : ""}`;
       btnPro.className = `mode-btn ${isPromo ? "active-promo" : ""}`;
 
-      // v1.4：點選「特價 / 促銷」時，直接隱藏頂部「原價」輸入框
       document.getElementById("rmRegularPriceGroup").classList.toggle("hidden", isPromo);
       document.getElementById("rmRegularPrice").value = rmState.regularPrice;
       document.getElementById("rmPromoPanel").classList.toggle("hidden", !isPromo);
@@ -3131,30 +3133,24 @@
       updateRecordLivePreview();
     }
 
-    function renderLockedRegularNoteHtml() {
+    function renderMissingBasePriceAlertHtml() {
       const rp = parseFloat(rmState.regularPrice);
-      if (!isNaN(rp) && rp > 0) {
-        return `<div class="locked-orig-note">🔒 已鎖定原建檔原價 $${formatMoney(rp)}（此處不可修改；特價過期將自動退回此價）</div>`;
-      }
-      return "";
-    }
-
-    function renderPromoBasePriceInputHtml() {
+      if (!isNaN(rp) && rp > 0) return "";
       return `
-        <div class="form-group" style="margin-bottom:9px;">
-          <label class="form-label" style="font-size:12px;">單件標示價 (元) *</label>
-          <input type="number" inputmode="decimal" step="any" min="0" id="rmDynBasePrice" value="${escapeHtml(rmState.regularPrice)}" placeholder="輸入單件標示價以供促銷換算" />
+        <div class="missing-base-alert">
+          <span>⚠️ 尚無原價可供換算，請先切回「原價」輸入</span>
+          <button type="button" class="btn btn-outline btn-xs" id="btnGoToRegularForBase">← 先填原價</button>
         </div>
       `;
     }
 
-    function bindPromoBasePriceInput() {
-      const baseInp = document.getElementById("rmDynBasePrice");
-      if (baseInp) {
-        baseInp.addEventListener("input", e => {
-          rmState.regularPrice = e.target.value;
-          document.getElementById("rmRegularPrice").value = e.target.value;
-          updateRecordLivePreview();
+    function bindMissingBasePriceAlert() {
+      const btn = document.getElementById("btnGoToRegularForBase");
+      if (btn) {
+        btn.addEventListener("click", () => {
+          rmState.priceMode = "regular";
+          syncRecordModalUI();
+          setTimeout(() => document.getElementById("rmRegularPrice").focus(), 50);
         });
       }
     }
@@ -3167,7 +3163,6 @@
         box.innerHTML = `
           <label class="form-label">會員價 / 限時特價金額 (元) *</label>
           <input type="number" inputmode="decimal" step="any" min="0" id="rmDynSpecialPrice" value="${escapeHtml(rmState.specialPrice)}" placeholder="請輸入實際特價金額，例如 89" />
-          ${renderLockedRegularNoteHtml()}
         `;
         document.getElementById("rmDynSpecialPrice").addEventListener("input", e => {
           rmState.specialPrice = e.target.value;
@@ -3175,7 +3170,7 @@
         });
       } else if (t === "buyXgetY") {
         box.innerHTML = `
-          ${renderPromoBasePriceInputHtml()}
+          ${renderMissingBasePriceAlertHtml()}
           <div class="quick-chips">
             <button type="button" class="q-chip" data-xy="1,1">買1送1 (5折)</button>
             <button type="button" class="q-chip" data-xy="2,1">買2送1 (6.7折)</button>
@@ -3190,7 +3185,7 @@
             <span id="rmBuyXFold" style="font-size:12px; color:var(--accent);"></span>
           </div>
         `;
-        bindPromoBasePriceInput();
+        bindMissingBasePriceAlert();
         box.querySelectorAll("[data-xy]").forEach(btn => {
           btn.addEventListener("click", () => {
             const [x, y] = btn.dataset.xy.split(",").map(Number);
@@ -3211,7 +3206,7 @@
         });
       } else if (t === "secondItem") {
         box.innerHTML = `
-          ${renderPromoBasePriceInputHtml()}
+          ${renderMissingBasePriceAlertHtml()}
           <div class="quick-chips">
             <button type="button" class="q-chip ${rmState.secondMode === "discount" && Number(rmState.secondDiscount) === 5 ? "active" : ""}" data-sec="discount,5">第2件5折</button>
             <button type="button" class="q-chip ${rmState.secondMode === "discount" && Number(rmState.secondDiscount) === 6 ? "active" : ""}" data-sec="discount,6">第2件6折</button>
@@ -3237,7 +3232,7 @@
             </div>
           `}
         `;
-        bindPromoBasePriceInput();
+        bindMissingBasePriceAlert();
         box.querySelectorAll("[data-sec]").forEach(btn => {
           btn.addEventListener("click", () => {
             const [mode, val] = btn.dataset.sec.split(",");
@@ -3283,7 +3278,6 @@
             <input type="number" inputmode="decimal" step="any" min="0" id="rmDynBundleM" value="${escapeHtml(rmState.bundleM)}" placeholder="總金額" />
             <span>元</span>
           </div>
-          ${renderLockedRegularNoteHtml()}
         `;
         box.querySelectorAll("[data-bn]").forEach(btn => {
           btn.addEventListener("click", () => {
@@ -3302,7 +3296,7 @@
         });
       } else if (t === "percentOff") {
         box.innerHTML = `
-          ${renderPromoBasePriceInputHtml()}
+          ${renderMissingBasePriceAlertHtml()}
           <div class="quick-chips">
             ${[9, 88, 85, 8, 75, 65].map(d => `
               <button type="button" class="q-chip ${Number(rmState.discountRate) === d ? "active" : ""}" data-disc="${d}">${d}折</button>
@@ -3315,7 +3309,7 @@
           </div>
           <div class="form-hint">支援輸入 85 或 8.5（均自動識別為 85 折）</div>
         `;
-        bindPromoBasePriceInput();
+        bindMissingBasePriceAlert();
         box.querySelectorAll("[data-disc]").forEach(btn => {
           btn.addEventListener("click", () => {
             rmState.discountRate = Number(btn.dataset.disc);
@@ -3329,7 +3323,7 @@
         });
       } else if (t === "cashOff") {
         box.innerHTML = `
-          ${renderPromoBasePriceInputHtml()}
+          ${renderMissingBasePriceAlertHtml()}
           <div class="quick-chips">
             ${[10, 20, 50, 100, 200].map(c => `
               <button type="button" class="q-chip ${Number(rmState.cashOffAmount) === c ? "active" : ""}" data-cash="${c}">-${c}元</button>
@@ -3341,7 +3335,7 @@
             <span>元</span>
           </div>
         `;
-        bindPromoBasePriceInput();
+        bindMissingBasePriceAlert();
         box.querySelectorAll("[data-cash]").forEach(btn => {
           btn.addEventListener("click", () => {
             rmState.cashOffAmount = Number(btn.dataset.cash);
@@ -3640,7 +3634,7 @@
     });
 
     /********************************************************************
-     * 貨架即時 PK 計算機（同步 v1.4：套用促銷時隱藏頂部原價欄位）
+     * 貨架即時 PK 計算機（同步 v1.5：套用促銷時完全不顯示原價／單件標示價欄位）
      ********************************************************************/
     function renderPKTab() {
       const dim = pkState.dimension;
@@ -3725,10 +3719,11 @@
       const unitOpts = cfg.inputUnits.map(u => `<option value="${u.id}" ${u.id === item.unit ? "selected" : ""}>${escapeHtml(u.label)}</option>`).join("");
       const storeOpts = appState.stores.map(s => `<option value="${escapeHtml(s)}" ${s === item.store ? "selected" : ""}>${escapeHtml(s)}</option>`).join("");
 
-      const pkBaseInputHtml = `
-        <div class="form-group" style="margin-bottom:8px;">
-          <label class="form-label" style="font-size:12px;">單件標示價 (元) *</label>
-          <input type="number" inputmode="decimal" step="any" data-pk-field="regularPrice" value="${escapeHtml(item.regularPrice)}" placeholder="輸入單件標示價" />
+      const hasBasePrice = parseFloat(item.regularPrice) > 0;
+      const pkMissingBaseHtml = hasBasePrice ? "" : `
+        <div class="missing-base-alert" style="margin-bottom:8px;">
+          <span>⚠️ 尚無原價可供換算，請先填原價</span>
+          <button type="button" class="btn btn-outline btn-xs" data-pk-go-reg="${key}">← 先填原價</button>
         </div>
       `;
 
@@ -3743,7 +3738,7 @@
             </div>`;
         } else if (item.promoType === "buyXgetY") {
           promoSubHtml = `
-            ${pkBaseInputHtml}
+            ${pkMissingBaseHtml}
             <div class="inline-formula">
               <span>買</span>
               <input type="number" inputmode="numeric" data-pk-field="buyX" value="${escapeHtml(item.buyX)}" />
@@ -3752,7 +3747,7 @@
             </div>`;
         } else if (item.promoType === "secondItem") {
           promoSubHtml = `
-            ${pkBaseInputHtml}
+            ${pkMissingBaseHtml}
             <div class="quick-chips" style="margin-bottom:6px;">
               <button type="button" class="q-chip ${item.secondMode === "discount" ? "active" : ""}" data-pk-secmode="discount">打折</button>
               <button type="button" class="q-chip ${item.secondMode === "addPrice" ? "active" : ""}" data-pk-secmode="addPrice">加價購</button>
@@ -3770,11 +3765,11 @@
             </div>`;
         } else if (item.promoType === "percentOff") {
           promoSubHtml = `
-            ${pkBaseInputHtml}
+            ${pkMissingBaseHtml}
             <div class="inline-formula"><span>直接打</span><input type="number" inputmode="decimal" step="any" data-pk-field="discountRate" value="${escapeHtml(item.discountRate)}" /><span>折</span></div>`;
         } else if (item.promoType === "cashOff") {
           promoSubHtml = `
-            ${pkBaseInputHtml}
+            ${pkMissingBaseHtml}
             <div class="inline-formula"><span>現折</span><input type="number" inputmode="decimal" step="any" data-pk-field="cashOffAmount" value="${escapeHtml(item.cashOffAmount)}" /><span>元</span></div>`;
         }
       }
@@ -3874,6 +3869,17 @@
           updatePKResult();
         });
       });
+
+      const goRegBtn = el.querySelector(`[data-pk-go-reg="${key}"]`);
+      if (goRegBtn) {
+        goRegBtn.addEventListener("click", () => {
+          item.priceMode = "regular";
+          renderPkCard(key);
+          updatePKResult();
+          const regInp = el.querySelector('[data-pk-field="regularPrice"]');
+          if (regInp) setTimeout(() => regInp.focus(), 50);
+        });
+      }
 
       el.querySelectorAll("[data-pk-ptype]").forEach(btn => {
         btn.addEventListener("click", () => {
@@ -3975,7 +3981,10 @@
         appState.products.unshift(prod);
       }
 
-      const needBasePrice = item.priceMode === "regular" || !["direct", "bundleNM"].includes(item.promoType);
+      const regularPriceVal = item.regularPrice !== "" && !isNaN(parseFloat(item.regularPrice))
+        ? parseFloat(item.regularPrice)
+        : null;
+
       const newRec = {
         id: uid("rec"),
         store: item.store || appState.activeStore,
@@ -3987,7 +3996,7 @@
         unit: item.unit,
         note: "由貨架 PK 計算機轉存",
         priceMode: item.priceMode,
-        regularPrice: needBasePrice && item.regularPrice !== "" ? parseFloat(item.regularPrice) : null,
+        regularPrice: regularPriceVal,
         promo: item.priceMode === "promo" ? {
           type: item.promoType,
           subLabel: DIRECT_PROMO_LABEL,
